@@ -1,0 +1,44 @@
+---
+title: "HDRU dashbooard"
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: rows
+    vertical_layout: fill
+---
+
+```{r setup, include=FALSE,echo=FALSE}
+library(flexdashboard)
+library(tidyverse)
+library(lubridate)
+```
+
+
+```{r dataImport}
+admissionData <- read_csv("data/hdru_admission_raw.csv")
+dailyData <- read_csv("data/hdru_daily_raw.csv")
+```
+
+Column {data-width=350}
+-----------------------------------------------------------------------
+
+### Weekly admissions
+
+```{r}
+
+```
+
+Column {data-width=350}
+-----------------------------------------------------------------------
+
+### Age and sex distribution
+
+```{r}
+
+```
+
+### Patients receiving organ support
+
+```{r}
+
+```
+
