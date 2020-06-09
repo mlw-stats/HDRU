@@ -1,5 +1,5 @@
 ---
-title: "HDRU dashbooard"
+title: "HDRU dashboard"
 output: 
   flexdashboard::flex_dashboard:
     orientation: rows
@@ -10,6 +10,7 @@ output:
 library(flexdashboard)
 library(tidyverse)
 library(lubridate)
+library(plotly)
 ```
 
 
@@ -18,7 +19,7 @@ admissionData <- read_csv("data/hdru_admission_raw.csv")
 dailyData <- read_csv("data/hdru_daily_raw.csv")
 ```
 
-Column {data-width=350}
+Row {data-width=350}
 -----------------------------------------------------------------------
 
 ### Weekly admissions
@@ -27,7 +28,13 @@ Column {data-width=350}
 
 ```
 
-Column {data-width=350}
+### Fig 2
+
+```{r}
+
+```
+
+Row {data-width=350}
 -----------------------------------------------------------------------
 
 ### Age and sex distribution
