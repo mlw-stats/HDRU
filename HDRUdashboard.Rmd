@@ -12,7 +12,8 @@ library(tidyverse)
 library(lubridate)
 library(plotly)
 ```
-
+Page 1 - Figures {data-icon="fa-list"}
+=======================================================
 
 ```{r dataImport}
 admissionData <- read_csv("data/hdru_admission_raw.csv")
@@ -53,6 +54,7 @@ admissionsWeekly<-admissionData %>%
 admissionsWeekly$countType<-factor(admissionsWeekly$countType,levels=c("n","nOutcomeKnown","nOrganSupportOxygen","nOrganSupportFluidBalance"))
 ggplot(data=admissionsWeekly,mapping=aes(x=week,y=n,fill=countType)) +
   geom_bar(position="dodge",stat="identity") +
+  theme_minimal()+
   scale_fill_manual(values=c("steelblue","grey","salmon","orange"),name="",labels=c("admitted","outcome recorded","required oxygen support","required fluid balance")) +
   ylab("frequency") +
   theme(legend.position="top")
@@ -62,8 +64,8 @@ ggplot(data=admissionsWeekly,mapping=aes(x=week,y=n,fill=countType)) +
 
 ```{r}
 admissionData$agegrp <- NA
-admissionData$agegrp[admissionData$age <= 30] <- "<30"
-admissionData$agegrp[admissionData$age > 30 & admissionData$age <= 39.9] <- "30-49"
+admissionData$agegrp[admissionData$age <= 30] <- "0-30"
+admissionData$agegrp[admissionData$age > 30 & admissionData$age <= 39.9] <- "30-39"
 admissionData$agegrp[admissionData$age > 40 & admissionData$age <= 49.9] <- "40-49"
 admissionData$agegrp[admissionData$age > 50 & admissionData$age <= 59.9] <- "50-59"
 admissionData$agegrp[admissionData$age > 60] <- "60+"
@@ -102,3 +104,5 @@ Row {data-width=350}
 
 ```
 
+Page 2 - Tables {data-icon="fa-list"}
+======================================================================
