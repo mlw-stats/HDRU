@@ -19,16 +19,20 @@ admissionData <- read_csv("data/hdru_admission_raw.csv")
   # not all PIDs are unique, e.g. KAA7V0 - can people be admitted, then discharged, then re-admitted from HDRU?
   # which variable captures date of discharge?
 dailyData <- read_csv("data/hdru_daily_raw.csv")
+
+
 # merge data; needed to calculate duration of organ support; use individual files for tables figures that only focus on admission or daily data
 datAdmTmp<-admissionData 
 datDailyTmp<-dailyData
 colnames(datAdmTmp)<-paste(sep="_","adm",colnames(datAdmTmp)) 
 colnames(datDailyTmp)<-paste(sep="_","dly",colnames(datDailyTmp))
 datMerged<-full_join(datAdmTmp,datDailyTmp,by=c("adm_pid" = "dly_pid"))
+
 osaDur<-dailyData %>%
   select(pid,osa1,osa2) %>%
   group_by(pid) %>%
   summarise(osa1Dur=sum(osa1[!is.na(osa1)]),osa2Dur=sum(osa2[!is.na(osa1)])) # counts days where organ support was recorded
+
 admissionData<-left_join(admissionData,osaDur,by="pid")
 # table(admissionData$adm1,admissionData$osa1Dur) # conflicts: 10 with adm1==1, but osa1Dur==0, 1 with adm1==0 but osa1Dur>0
 # table(admissionData$adm2,admissionData$osa2Dur) # conflicts: 4 with adm2==1, but osa2Dur==0, 1 with adm2==0 but osa2Dur>0
@@ -50,6 +54,7 @@ datOutcome<-dailyData %>%
   mutate(pid=pid,outcome=ifelse(!is.na(outcome) & outcome!=1,1,0)) %>%
   group_by(pid) %>%
   summarise(outcomeKnown=max(outcome))
+
 admissionsWeekly<-admissionData %>%
   left_join(y=datOutcome,by="pid") %>%
   mutate(outcomeKnown=ifelse(is.na(outcomeKnown),0,1)) %>%
@@ -58,6 +63,9 @@ admissionsWeekly<-admissionData %>%
   pivot_longer(cols=-week,names_to="countType",values_to="n")
   # outcome data needs to be taken from the daily data
 admissionsWeekly$countType<-factor(admissionsWeekly$countType,levels=c("n","nOutcomeKnown","nOrganSupportOxygen","nOrganSupportFluidBalance"))
+
+admissionsWeekly$countType<-factor(admissionsWeekly$countType,levels=c("n","nOutcomeKnown","nOrganSupportOxygen","nOrganSupportFluidBalance"))
+
 admissionsWeekly %>%
   filter(is.element(el=ymd(week),set=ymd(curWeek))) %>%
   ggplot(mapping=aes(x=week,y=n,fill=countType)) +
@@ -100,6 +108,8 @@ Row {data-width=350}
 
 ### Organ support duration
 
+### Some table
+
 ```{r}
 admissionData %>%
   select(pid,osa1Dur,osa2Dur) %>%
@@ -117,6 +127,20 @@ admissionData %>%
 ### Some table
 
 ```{r}
+### Organ support duration
+
+admissionData %>%
+  select(pid,osa1Dur,osa2Dur) %>%
+  pivot_longer(cols=-pid,names_to="osType",values_to="duration") %>%
+  mutate(osType=factor(ifelse(osType=="osa1Dur","Oxygen administration.","Careful fluid balance."),levels=c("Oxygen administration.","Careful fluid balance."))) %>%
+  
+  ggplot(mapping=aes(x=osType,y=duration,fill=osType)) +
+  geom_boxplot() +
+  scale_fill_manual(values=c("salmon","orange")) +
+  theme(legend.position="none",text=element_text(size=14)) +
+  xlab("organ support") +
+  ylab("duration")
+
 ```
 
 Page 2 - Tables {data-icon="fa-list"}
