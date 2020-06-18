@@ -11,6 +11,7 @@ library(flexdashboard)
 library(tidyverse)
 library(lubridate)
 library(plotly)
+library(wesanderson)
 ```
 Page 1 - Figures {data-icon="fa-list"}
 =======================================================
@@ -36,12 +37,16 @@ osaDur<-dailyData %>%
 admissionData<-left_join(admissionData,osaDur,by="pid")
 # table(admissionData$adm1,admissionData$osa1Dur) # conflicts: 10 with adm1==1, but osa1Dur==0, 1 with adm1==0 but osa1Dur>0
 # table(admissionData$adm2,admissionData$osa2Dur) # conflicts: 4 with adm2==1, but osa2Dur==0, 1 with adm2==0 but osa2Dur>0
+
+admissionData$sexFactor<-factor(ifelse(admissionData$sex==0,"Female","Male"))
 ```
 
 ```{r weekSelect}
 curWeek<-dmy("27/04/2020","04/05/2020","11/05/2020","18/05/2020","25/05/2020")
   # weeks to start on Mondays
   # this variable to become a shiny input / selection field
+minDay<-min(ymd(curWeek))
+maxDay<-max(ymd(curWeek)+6)
 ```
 
 Row {data-width=350}
@@ -59,23 +64,22 @@ admissionsWeekly<-admissionData %>%
   left_join(y=datOutcome,by="pid") %>%
   mutate(outcomeKnown=ifelse(is.na(outcomeKnown),0,1)) %>%
   group_by(week=cut(dmy(data_date),"week",start.on.monday=TRUE)) %>%
-  summarise(n=sum(!is.na(pid)),nOutcomeKnown=sum(outcomeKnown==1),nOrganSupportOxygen=sum(adm1==1),nOrganSupportFluidBalance=sum(adm2=1)) %>%
+  summarise(n=sum(!is.na(pid)),nOutcomeKnown=sum(outcomeKnown==1)) %>%
   pivot_longer(cols=-week,names_to="countType",values_to="n")
   # outcome data needs to be taken from the daily data
-admissionsWeekly$countType<-factor(admissionsWeekly$countType,levels=c("n","nOutcomeKnown","nOrganSupportOxygen","nOrganSupportFluidBalance"))
-
-admissionsWeekly$countType<-factor(admissionsWeekly$countType,levels=c("n","nOutcomeKnown","nOrganSupportOxygen","nOrganSupportFluidBalance"))
+admissionsWeekly$countType<-factor(admissionsWeekly$countType,levels=c("n","nOutcomeKnown"))
 
 admissionsWeekly %>%
   filter(is.element(el=ymd(week),set=ymd(curWeek))) %>%
   ggplot(mapping=aes(x=week,y=n,fill=countType)) +
   geom_bar(position="dodge",stat="identity") +
-  scale_fill_manual(values=c("steelblue","grey","salmon","orange"),name="",labels=c("admitted","outcome recorded","required oxygen support","required fluid balance")) +
-  ylab("frequency") +
-  theme(legend.position="top",text=element_text(size=14))
+  scale_fill_manual(values=wes_palette("Zissou1",n=4,type="discrete")[c(1,4)],name="",labels=c("admitted","outcome recorded")) +
+  ylab("Frequency") +
+  theme(legend.position="top",text=element_text(size=14)) +
+  xlab("Week")
 ```
 
-### Age and sex distribution
+### Age and sex distribution (for period `r minDay` to `r maxDay`)
 
 ```{r}
 admissionData$agegrp <- NA
@@ -84,31 +88,62 @@ admissionData$agegrp[admissionData$age > 30 & admissionData$age <= 39.9] <- "30-
 admissionData$agegrp[admissionData$age > 40 & admissionData$age <= 49.9] <- "40-49"
 admissionData$agegrp[admissionData$age > 50 & admissionData$age <= 59.9] <- "50-59"
 admissionData$agegrp[admissionData$age > 60] <- "60+"
+admissionData$agegrp<-factor(admissionData$agegrp)
 
 admissionDataSex <- admissionData %>%
-  group_by(sex,agegrp) %>%
-  summarize(nadmn = sum(!is.na(pid)))
-ggplot(admissionDataSex,aes(agegrp,nadmn,fill=factor(sex))) +
-  geom_bar(stat = "identity",position = position_dodge2(preserve="single"))+ 
-  theme_minimal() +
+  select(pid,data_date,agegrp,sexFactor) %>%
+  filter(dmy(data_date)>=ymd(minDay) & dmy(data_date)<ymd(maxDay)) %>%
+  group_by(sexFactor,agegrp) %>%
+  dplyr::summarize(nadmn = sum(!is.na(pid))) %>%
+  ungroup() %>%
+  tidyr::complete(sexFactor,agegrp,fill=list(nadmn=0))
+
+ggplot(admissionDataSex,aes(agegrp,nadmn,fill=sexFactor)) +
+  geom_bar(position="dodge",stat="identity") +
   xlab("Age at admission") +
   ylab("Frequency") +
-  theme(axis.title.x = element_text(size = 18),
-        axis.title.y = element_text(size = 18),
-        axis.text = element_text(size = 16),
-        legend.title = element_blank(),
-        legend.text = element_text(size = 18),
-        legend.position = "top")+
-  scale_fill_manual(values = c("#d7bde2","#a9cce3"),labels=c("Female","Male"))
+  theme(legend.position="top",text=element_text(size=14)) +
+  scale_fill_manual(values = wes_palette("Zissou1",n=4,type="discrete")[c(1,4)],name="")
 
 ```
+
 
 Row {data-width=350}
 -----------------------------------------------------------------------
+### Organ support
+
+```{r}
+datOutcome<-dailyData %>%
+  mutate(pid=pid,outcome=ifelse(!is.na(outcome) & outcome!=1,1,0)) %>%
+  group_by(pid) %>%
+  summarise(outcomeKnown=max(outcome))
+
+admissionsWeekly<-admissionData %>%
+  left_join(y=datOutcome,by="pid") %>%
+  mutate(outcomeKnown=ifelse(is.na(outcomeKnown),0,1)) %>%
+  group_by(week=cut(dmy(data_date),"week",start.on.monday=TRUE)) %>%
+  summarise(n=sum(!is.na(pid)),percOrganSupportOxygen=100*sum(adm1==1)/sum(!is.na(pid)),percOrganSupportFluidBalance=100*sum(adm2=1)/sum(!is.na(pid))) %>%
+  filter(is.element(el=ymd(week),set=ymd(curWeek)))
+
+admissionsWeeklyLong <-admissionsWeekly %>%
+  pivot_longer(cols=c(percOrganSupportOxygen,percOrganSupportFluidBalance),names_to="percType",values_to="percentage")
+  # outcome data needs to be taken from the daily data
+admissionsWeeklyLong$percType<-factor(admissionsWeeklyLong$percType,levels=c("percOrganSupportOxygen","percOrganSupportFluidBalance"))
+
+admissionsWeekly<-admissionsWeekly %>% mutate(
+  maxPerc=pmax(percOrganSupportOxygen,percOrganSupportFluidBalance),
+  nLabel=paste(sep="","n = ",n))
+
+ggplot() +
+  geom_bar(data=admissionsWeeklyLong,mapping=aes(x=week,y=percentage,fill=percType),position="dodge",stat="identity") +
+  scale_fill_manual(values=wes_palette("Zissou1",n=4,type="discrete")[c(1,4)],name="",labels=c("required oxygen support","required fluid balance")) +
+  ylab("Percentage") +
+  theme(legend.position="top",text=element_text(size=14)) +
+  xlab("Week") +
+  geom_text(data=admissionsWeekly,mapping=aes(x=week,y=-4,label=nLabel),colour="grey50")
+```
 
 ### Organ support duration
-
-### Some table
 
 ```{r}
 admissionData %>%
@@ -118,30 +153,14 @@ admissionData %>%
   
   ggplot(mapping=aes(x=osType,y=duration,fill=osType)) +
   geom_boxplot() +
-  scale_fill_manual(values=c("salmon","orange")) +
+  scale_fill_manual(values=wes_palette("Zissou1",n=4,type="discrete")[c(1,4)]) +
   theme(legend.position="none",text=element_text(size=14)) +
-  xlab("organ support") +
-  ylab("duration")
+  xlab("Organ support") +
+  ylab("Duration") + 
+  xlab("Week")
 ```
 
-### Some table
 
-```{r}
-### Organ support duration
-
-admissionData %>%
-  select(pid,osa1Dur,osa2Dur) %>%
-  pivot_longer(cols=-pid,names_to="osType",values_to="duration") %>%
-  mutate(osType=factor(ifelse(osType=="osa1Dur","Oxygen administration.","Careful fluid balance."),levels=c("Oxygen administration.","Careful fluid balance."))) %>%
-  
-  ggplot(mapping=aes(x=osType,y=duration,fill=osType)) +
-  geom_boxplot() +
-  scale_fill_manual(values=c("salmon","orange")) +
-  theme(legend.position="none",text=element_text(size=14)) +
-  xlab("organ support") +
-  ylab("duration")
-
-```
 
 Page 2 - Tables {data-icon="fa-list"}
 ======================================================================
