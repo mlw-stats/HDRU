@@ -12,9 +12,13 @@ library(tidyverse)
 library(lubridate)
 library(plotly)
 library(wesanderson)
+library(knitr)
+library(kableExtra)
 ```
-Page 1 - Figures {data-icon="fa-list"}
+
+Figures {data-icon="fa-list"}
 =======================================================
+
 ```{r dataImport}
 admissionData <- read_csv("data/hdru_admission_raw.csv")
   # not all PIDs are unique, e.g. KAA7V0 - can people be admitted, then discharged, then re-admitted from HDRU?
@@ -38,7 +42,78 @@ admissionData<-left_join(admissionData,osaDur,by="pid")
 # table(admissionData$adm1,admissionData$osa1Dur) # conflicts: 10 with adm1==1, but osa1Dur==0, 1 with adm1==0 but osa1Dur>0
 # table(admissionData$adm2,admissionData$osa2Dur) # conflicts: 4 with adm2==1, but osa2Dur==0, 1 with adm2==0 but osa2Dur>0
 
-admissionData$sexFactor<-factor(ifelse(admissionData$sex==0,"Female","Male"))
+admissionData$sexFactor<-factor(ifelse(admissionData$sex==0,"Female","Male"),levels=c("Female","Male"))
+admissionData$pregFactor<-factor(ifelse(admissionData$pregnancy==3,"Not known to be pregnant",ifelse(admissionData$pregnancy==2,"Recently pregnant",ifelse(admissionData$pregnancy==1,"Currently pregnant.",NA))),levels=c("Not known to be pregnant","Recently pregnant","Currently pregnant"))
+admissionData$weight<-4*admissionData$muac-50
+  # Cattermole et al (2016)
+  # some super light people!
+admissionData$height<-case_when(
+  admissionData$sexFactor=="Male" ~ (4.605*admissionData$ulnar_l+1.308*admissionData$age+28.003)/100,
+  admissionData$sexFactor=="Female" ~ (4.459*admissionData$ulnar_l+1.315*admissionData$age+31.485)/100
+)
+  # Gauld et al (2004); formula gives result in cm, hence dividing by 100 for meters
+  # very very tall people!!!
+admissionData$bmi<-admissionData$weight/(admissionData$height^2)
+  # these strike me as exceptionally low; lowest ever recorded BMI is 7.5, yet her we have several below that...
+admissionData$bmiFactor<-factor(case_when(
+  admissionData$bmi<18.5 ~ "<18.5",
+  admissionData$bmi>=18.5 & admissionData$bmi<25 ~ "18.5-<25",
+  admissionData$bmi>=25 & admissionData$bmi<30 ~ "25-<30",
+  admissionData$bmi>=30 & admissionData$bmi<40~ "30-<40",
+  admissionData$bmi>=40 ~ "40+"),
+  levels=c("<18.5","18.5-<25","25-<30","30-<40","40+")
+)
+
+admissionData$depFactor<-factor(case_when(
+  admissionData$dependecy==1 ~ "Able to live without assistance in daily activities",
+  admissionData$dependecy==2 ~ "Minor assistance with some daily activities",
+  admissionData$dependecy==3 ~ "Major assistance with majority of or all daily activities",
+  admissionData$dependecy==4 ~ "Total assistance with all daily activities"),
+  levels=c("Able to live without assistance in daily activities",
+           "Minor assistance with some daily activities",
+           "Major assistance with majority of or all daily activities",
+           "Total assistance with all daily activities")
+)
+
+admissionData$hivFactor<-factor(case_when(
+  admissionData$serop==0 ~ "No HIV",
+  admissionData$serop==1 & admissionData$art==1 ~ "ART compliant",
+  admissionData$serop==1 & admissionData$art==2 ~ "ART non-compliant",
+  admissionData$serop==1 & admissionData$art==3 ~ "Not on ART"),
+  levels=c("No HIV","ART compliant","ART non-compliant","Not on ART")
+)
+
+admissionData$tbFactor<-factor(case_when(
+  admissionData$tb==0 ~ "No TB",
+  admissionData$tb==1 ~ "TB"),
+  levels=c("No TB","TB")
+)
+
+admissionData$hypFactor<-factor(case_when(
+  admissionData$sh==0 ~ "No severe hypertension",
+  admissionData$sh==1 ~ "Severe hypertension"),
+  levels=c("No severe hypertension","Hypertension")
+)
+
+admissionData$ccfFactor<-factor(case_when(
+  admissionData$ccf==0 ~ "No congestive cardiac failure",
+  admissionData$ccf==1 ~ "Congestive cardiac failure"),
+  levels=c("No congestive cardiac failure","Congestive cardiac failure")
+)
+
+admissionData$strokeFactor<-factor(case_when(
+  admissionData$stroke==0 ~ "No stroke",
+  admissionData$stroke==1 ~ "Stroke"),
+  levels=c("No stroke","Stroke")
+)
+
+admissionData$diabetesFactor<-factor(case_when(
+  admissionData$d_insulin==0 & admissionData$d_tablets==0 & admissionData$d_no_tret==0 ~ "No diabetes",
+  admissionData$d_insulin==1 ~ "On insulin",
+  admissionData$d_tablets==1 ~ "On tablets",
+  admissionData$d_no_tret==1 ~ "Not on treatment"),
+  levels=c("No diabetes","On insulin","On tablets","Not on treatment")
+)
 ```
 
 ```{r weekSelect}
@@ -47,6 +122,9 @@ curWeek<-dmy("27/04/2020","04/05/2020","11/05/2020","18/05/2020","25/05/2020")
   # this variable to become a shiny input / selection field
 minDay<-min(ymd(curWeek))
 maxDay<-max(ymd(curWeek)+6)
+
+admissionDataCurPeriod<-admissionData %>%
+  filter(dmy(data_date)>=ymd(minDay) & dmy(data_date)<ymd(maxDay))
 ```
 
 Row {data-width=350}
@@ -147,6 +225,7 @@ ggplot() +
 
 ```{r}
 admissionData %>%
+  filter(dmy(data_date)>=ymd(minDay) & dmy(data_date)<ymd(maxDay)) %>%
   select(pid,osa1Dur,osa2Dur) %>%
   pivot_longer(cols=-pid,names_to="osType",values_to="duration") %>%
   mutate(osType=factor(ifelse(osType=="osa1Dur","Oxygen administration.","Careful fluid balance."),levels=c("Oxygen administration.","Careful fluid balance."))) %>%
@@ -162,5 +241,183 @@ admissionData %>%
 
 
 
-Page 2 - Tables {data-icon="fa-list"}
+Tables {data-icon="fa-list"}
 ======================================================================
+
+
+```{r}
+sumStatFun<-function(dat,var,groupVar=NULL,groups=NULL,values=NULL,breaks=NULL,rightTF=F){
+  # dat = data frame
+  # var = variable in dat for which the summary statistics are to be computed
+  # groupVar = variable to stratify the summary statistics by and to compute comparison p-values for
+  # values = levels or values (if variable is categorical or discrete)
+  # breaks = breaks to categorise a continuous variable
+  # rightTF = logical, indicating if the intervals should be closed on the right (and open on the left) or vice versa
+  
+  if(is.null(groupVar) | is.null(groups)){
+    dat$tmpGroup<-rep("allSamples",nrow(dat))
+    groups<-"allSamples"
+    groupVar<-"tmpGroup"
+  }
+  
+  dat<-as.data.frame(dat)
+  
+  # continuous variables
+  if(is.null(values) & is.null(breaks)){
+    ssFunTmp<-function(dat,var){
+      res<-data.frame(
+        stat=c("N (%)","mean (SD)","median (IQR)","range"),
+        stat1Val=c(sum(!is.na(dat[,var])),mean(dat[,var],na.rm=T),median(dat[,var],na.rm=T),min(dat[,var],na.rm=T)),
+        stat2Val=c(sum(!is.na(dat[,var]))/nrow(dat),sd(dat[,var],na.rm=T),quantile(dat[,var],probs=0.25,na.rm=T),max(dat[,var],na.rm=T)),
+        stat3Val=c(NA,NA,quantile(dat[,var],probs=0.75,na.rm=T),NA),
+        stringsAsFactors=F)
+      return(res)
+    }
+      
+    res<-ssFunTmp(dat=dat,var=var)
+    colnames(res)<-paste(sep="","overall_",colnames(res))
+    
+    if(length(groups)>1){
+      for(g in groups){
+        if(sum(!is.na(dat[dat[,groupVar]==g,var]))>0){
+          resTmp<-ssFunTmp(dat=dat[dat[,groupVar]==g,],var=var)
+          colnames(resTmp)<-paste(sep="",g,"_",colnames(resTmp))
+          res<-cbind(res,resTmp[,-1])
+        }else{
+          resTmp<-data.frame(stat1Val=rep(NA,4),stat2Val=NA,stat3Val=NA)
+          colnames(resTmp)<-paste(sep="",g,"_",colnames(resTmp))
+          res<-cbind(res,resTmp)
+        }
+      }
+    }
+    
+    res$p<-NA
+    if(length(groups)==2){
+      try(res$p[2]<-t.test(as.formula(paste(sep="~",var,groupVar)),data=dat)$p.value,silent=T)
+      try(res$p[3]<-wilcox.test(as.formula(paste(sep="~",var,groupVar)),data=dat)$p.value,silent=T)
+    }else if(length(groups)>2){
+      try(res$p[2]<-summary(aov(as.formula(paste(sep="~",var,groupVar)),data=dat))[[1]][1,"Pr(>F)"],silent=T)
+      try(res$p[3]<-kruskal.test(as.formula(paste(sep="~",var,groupVar)),data=dat)$p.value,silent=T)
+    }
+  }else{
+    # categorical or discrete variables
+    if(!is.null(values)){
+      tmp<-dat[,var]
+      levels(tmp)
+    # continuous variables to be categorised
+    }else if(!is.null(breaks)){
+      tmp<-cut(dat[,var],breaks=breaks,right=rightTF,ordered_result=T)
+    }
+    nonMissing<-sum(!is.na(dat[,var]))
+    for(g in groups){nonMissing<-c(nonMissing,sum(!is.na(dat[,var]) & dat[,groupVar]==g))}
+    resCounts<-rbind(nonMissing,cbind(table(tmp),table(tmp,dat[,groupVar])))
+    resProps<-resCounts
+    for(j in 1:ncol(resProps)){resProps[-1,j]<-resProps[-1,j]/resProps[1,j]}
+    resProps[1,1]<-resProps[1,1]/nrow(dat)
+    for(j in 1:length(groups)){resProps[1,j+1]<-resProps[1,j+1]/sum(dat[,groupVar]==groups[j])}
+    res<-data.frame(statName="N (%)",
+                    overall_count=resCounts[,1],
+                    overall_prop=resProps[,1],
+                    NA,
+                    stringsAsFactors=F)
+    if(length(groups)>1){
+      for(j in 2:ncol(resProps)){
+        res<-cbind(res,resCounts[,j],resProps[,j],NA)
+        colnames(res)[(ncol(res)-2):(ncol(res)-1)]<-paste(sep="_",colnames(resCounts)[j],c("count","prop"))
+      }
+    }
+
+    res$p<-NA
+    if(length(groups)>1){
+      res$p[2]<-fisher.test(resCounts[-1,-1])$p.value
+    }
+  }
+    
+  return(res)
+}
+```
+
+Row {data-width=350}
+-----------------------------------------------------------------------
+
+```{r}
+reformatForTable1<-function(sumStatOutput,varDescription,contCat){
+  if(contCat=="continuous"){
+    varTmp<-c(paste(sep="",varDescription," [n=",as.integer(sumStatOutput[sumStatOutput[,"overall_stat"]=="N (%)","overall_stat1Val"]),"]"),
+              "  Mean (SD)",
+              "  Median (IQR)"
+    )
+    stat1Tmp<-c("",
+                format(nsmall=2,round(digits=2,sumStatOutput[sumStatOutput[,"overall_stat"]=="mean (SD)","overall_stat1Val"])),
+                format(nsmall=2,round(digits=2,sumStatOutput[sumStatOutput[,"overall_stat"]=="median (IQR)","overall_stat1Val"]))                                                                                                                       
+    )
+    stat2Tmp<-c("",
+                paste(sep="","(",format(nsmall=2,round(digits=2,sumStatOutput[sumStatOutput[,"overall_stat"]=="mean (SD)","overall_stat2Val"])),")"),
+                paste(sep="","(",paste(collapse=",",format(nsmall=2,round(digits=2,unlist(sumStatOutput[sumStatOutput[,"overall_stat"]=="median (IQR)",c("overall_stat2Val","overall_stat3Val")])))),")")                                                                                                                          
+    )
+    
+  }else if(contCat=="categorical"){
+    varTmp<-c(paste(sep="",varDescription," [n=",as.integer(sumStatOutput["nonMissing","overall_count"]),"]"),
+              paste(sep="","  ",rownames(sumStatOutput)[-1])
+    )
+    stat1Tmp<-""
+    stat2Tmp<-""
+    for(lvl in rownames(sumStatOutput)[-1]){
+      stat1Tmp<-c(stat1Tmp,
+                  sumStatOutput[rownames(sumStatOutput)==lvl,"overall_count"]
+                  )
+      stat2Tmp<-c(stat2Tmp,
+                  paste(sep="","(",format(nsmall=1,round(digits=1,100*sumStatOutput[rownames(sumStatOutput)==lvl,"overall_prop"])),"%)")
+      )
+    }
+  }
+  
+  res<-data.frame(variable=varTmp,stat1=stat1Tmp,stat2=stat2Tmp)
+  return(res)
+}
+```
+
+```{r}
+tbl1<-reformatForTable1(sumStatOutput=sumStatFun(dat=admissionDataCurPeriod,var="age"),varDescription="Age at admission in years",contCat="continuous")
+tbl1<-rbind(tbl1,reformatForTable1(sumStatOutput=sumStatFun(dat=admissionDataCurPeriod,var="sexFactor",values=levels(admissionDataCurPeriod$sexFactor)),varDescription="Sex, n (%)",contCat="categorical"))
+tbl1<-rbind(tbl1,reformatForTable1(sumStatOutput=sumStatFun(dat=admissionDataCurPeriod,var="pregFactor",values=levels(admissionDataCurPeriod$pregFactor)),varDescription="Pregnancy status, n (% of females)",contCat="categorical"))
+tbl1<-rbind(tbl1,reformatForTable1(sumStatOutput=sumStatFun(dat=admissionDataCurPeriod,var="bmiFactor",values=levels(admissionDataCurPeriod$bmiFactor)),varDescription="Body mass index categories, n (%)",contCat="categorical"))
+
+varDescIdx<-grep(tbl1$variable,pattern="\\[n=")
+varDescLabels<-tbl1[varDescIdx,1]
+tbl1<-tbl1[-varDescIdx,]
+
+kable(tbl1,col.names=NULL,row.names=F,caption="Patient characteristics: demographics") %>%
+  kable_styling("striped", full_width = F) %>%
+  #add_header_above(c("Demographics" = 1, paste(sep="","Patients to HDRU from ",minDay," to ",maxDay,"[n = ",nrow(admissionData),"]") = 2)) %>%
+  pack_rows(varDescLabels[1], 1, 2) %>%
+  pack_rows(varDescLabels[2], 3, 4) %>%
+  pack_rows(varDescLabels[3], 5, 7) %>%
+  pack_rows(varDescLabels[4], 8, 12)
+```
+
+```{r}
+tbl2<-reformatForTable1(sumStatOutput=sumStatFun(dat=admissionDataCurPeriod,var="depFactor",values=levels(admissionDataCurPeriod$depFactor)),varDescription="Dependency prior to admission, n (%)",contCat="categorical")
+tbl2<-rbind(tbl2,reformatForTable1(sumStatOutput=sumStatFun(dat=admissionDataCurPeriod,var="hivFactor",values=levels(admissionDataCurPeriod$hivFactor)),varDescription="HIV, n (%)",contCat="categorical"))
+tbl2<-rbind(tbl2,reformatForTable1(sumStatOutput=sumStatFun(dat=admissionDataCurPeriod,var="tbFactor",values=levels(admissionDataCurPeriod$tbFactor)),varDescription="TB, n (%)",contCat="categorical"))
+tbl2<-rbind(tbl2,reformatForTable1(sumStatOutput=sumStatFun(dat=admissionDataCurPeriod,var="hypFactor",values=levels(admissionDataCurPeriod$hypFactor)),varDescription="Hyptertension, n (%)",contCat="categorical"))
+tbl2<-rbind(tbl2,reformatForTable1(sumStatOutput=sumStatFun(dat=admissionDataCurPeriod,var="ccfFactor",values=levels(admissionDataCurPeriod$ccfFactor)),varDescription="Congestive cardiac failure, n (%)",contCat="categorical"))
+tbl2<-rbind(tbl2,reformatForTable1(sumStatOutput=sumStatFun(dat=admissionDataCurPeriod,var="strokeFactor",values=levels(admissionDataCurPeriod$strokeFactor)),varDescription="Stroke, n (%)",contCat="categorical"))
+tbl2<-rbind(tbl2,reformatForTable1(sumStatOutput=sumStatFun(dat=admissionDataCurPeriod,var="diabetesFactor",values=levels(admissionDataCurPeriod$diabetesFactor)),varDescription="Diabetes, n (%)",contCat="categorical"))
+
+varDescIdx<-grep(tbl2$variable,pattern="\\[n=")
+varDescLabels<-tbl2[varDescIdx,1]
+tbl2<-tbl2[-varDescIdx,]
+
+kable(tbl2,col.names=NULL,row.names=F,caption="Patient characteristics: medical history") %>%
+  kable_styling("striped", full_width = F) %>%
+  #add_header_above(c("Demographics" = 1, paste(sep="","Patients to HDRU from ",minDay," to ",maxDay,"[n = ",nrow(admissionData),"]") = 2)) %>%
+  pack_rows(varDescLabels[1], 1, 4) %>%
+  pack_rows(varDescLabels[2], 5, 8) %>%
+  pack_rows(varDescLabels[3], 9, 10) %>%
+  pack_rows(varDescLabels[4], 11, 12) %>%
+  pack_rows(varDescLabels[5], 13, 14) %>%
+  pack_rows(varDescLabels[6], 15, 16) %>%
+  pack_rows(varDescLabels[7], 17, 20)
+```
+
