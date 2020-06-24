@@ -342,7 +342,7 @@ Row {data-width=350}
 -----------------------------------------------------------------------
 
 ```{r}
-reformatForTable1<-function(sumStatOutput,varDescription,contCat){
+reformatForTable<-function(sumStatOutput,varDescription,contCat){
   if(contCat=="continuous"){
     varTmp<-c(paste(sep="",varDescription," [n=",as.integer(sumStatOutput[sumStatOutput[,"overall_stat"]=="N (%)","overall_stat1Val"]),"]"),
               "  Mean (SD)",
@@ -379,16 +379,16 @@ reformatForTable1<-function(sumStatOutput,varDescription,contCat){
 ```
 
 ```{r}
-tbl1<-reformatForTable1(sumStatOutput=sumStatFun(dat=admissionDataCurPeriod,var="age"),varDescription="Age at admission in years",contCat="continuous")
-tbl1<-rbind(tbl1,reformatForTable1(sumStatOutput=sumStatFun(dat=admissionDataCurPeriod,var="sexFactor",values=levels(admissionDataCurPeriod$sexFactor)),varDescription="Sex, n (%)",contCat="categorical"))
-tbl1<-rbind(tbl1,reformatForTable1(sumStatOutput=sumStatFun(dat=admissionDataCurPeriod,var="pregFactor",values=levels(admissionDataCurPeriod$pregFactor)),varDescription="Pregnancy status, n (% of females)",contCat="categorical"))
-tbl1<-rbind(tbl1,reformatForTable1(sumStatOutput=sumStatFun(dat=admissionDataCurPeriod,var="bmiFactor",values=levels(admissionDataCurPeriod$bmiFactor)),varDescription="Body mass index categories, n (%)",contCat="categorical"))
+tbl1<-reformatForTable(sumStatOutput=sumStatFun(dat=admissionDataCurPeriod,var="age"),varDescription="Age at admission in years",contCat="continuous")
+tbl1<-rbind(tbl1,reformatForTable(sumStatOutput=sumStatFun(dat=admissionDataCurPeriod,var="sexFactor",values=levels(admissionDataCurPeriod$sexFactor)),varDescription="Sex, n (%)",contCat="categorical"))
+tbl1<-rbind(tbl1,reformatForTable(sumStatOutput=sumStatFun(dat=admissionDataCurPeriod,var="pregFactor",values=levels(admissionDataCurPeriod$pregFactor)),varDescription="Pregnancy status, n (% of females)",contCat="categorical"))
+tbl1<-rbind(tbl1,reformatForTable(sumStatOutput=sumStatFun(dat=admissionDataCurPeriod,var="bmiFactor",values=levels(admissionDataCurPeriod$bmiFactor)),varDescription="Body mass index categories, n (%)",contCat="categorical"))
 
 varDescIdx<-grep(tbl1$variable,pattern="\\[n=")
 varDescLabels<-tbl1[varDescIdx,1]
 tbl1<-tbl1[-varDescIdx,]
 
-kable(tbl1,col.names=NULL,row.names=F,caption=paste(sep="","Patient characteristics: demographics (period ",minDay," to ",maxDay,")")) %>%
+kable(tbl1,col.names=NULL,row.names=F,caption=paste(sep="","Patient characteristics: demographics (period ",minDay," to ",maxDay,"; total admissions n=",nrow(admissionDataCurPeriod),")")) %>%
   kable_styling("striped", full_width = F) %>%
   #add_header_above(c("Demographics" = 1, paste(sep="","Patients to HDRU from ",minDay," to ",maxDay,"[n = ",nrow(admissionData),"]") = 2)) %>%
   pack_rows(varDescLabels[1], 1, 2) %>%
@@ -398,19 +398,19 @@ kable(tbl1,col.names=NULL,row.names=F,caption=paste(sep="","Patient characterist
 ```
 
 ```{r}
-tbl2<-reformatForTable1(sumStatOutput=sumStatFun(dat=admissionDataCurPeriod,var="depFactor",values=levels(admissionDataCurPeriod$depFactor)),varDescription="Dependency prior to admission, n (%)",contCat="categorical")
-tbl2<-rbind(tbl2,reformatForTable1(sumStatOutput=sumStatFun(dat=admissionDataCurPeriod,var="hivFactor",values=levels(admissionDataCurPeriod$hivFactor)),varDescription="HIV, n (%)",contCat="categorical"))
-tbl2<-rbind(tbl2,reformatForTable1(sumStatOutput=sumStatFun(dat=admissionDataCurPeriod,var="tbFactor",values=levels(admissionDataCurPeriod$tbFactor)),varDescription="TB, n (%)",contCat="categorical"))
-tbl2<-rbind(tbl2,reformatForTable1(sumStatOutput=sumStatFun(dat=admissionDataCurPeriod,var="hypFactor",values=levels(admissionDataCurPeriod$hypFactor)),varDescription="Hyptertension, n (%)",contCat="categorical"))
-tbl2<-rbind(tbl2,reformatForTable1(sumStatOutput=sumStatFun(dat=admissionDataCurPeriod,var="ccfFactor",values=levels(admissionDataCurPeriod$ccfFactor)),varDescription="Congestive cardiac failure, n (%)",contCat="categorical"))
-tbl2<-rbind(tbl2,reformatForTable1(sumStatOutput=sumStatFun(dat=admissionDataCurPeriod,var="strokeFactor",values=levels(admissionDataCurPeriod$strokeFactor)),varDescription="Stroke, n (%)",contCat="categorical"))
-tbl2<-rbind(tbl2,reformatForTable1(sumStatOutput=sumStatFun(dat=admissionDataCurPeriod,var="diabetesFactor",values=levels(admissionDataCurPeriod$diabetesFactor)),varDescription="Diabetes, n (%)",contCat="categorical"))
+tbl2<-reformatForTable(sumStatOutput=sumStatFun(dat=admissionDataCurPeriod,var="depFactor",values=levels(admissionDataCurPeriod$depFactor)),varDescription="Dependency prior to admission, n (%)",contCat="categorical")
+tbl2<-rbind(tbl2,reformatForTable(sumStatOutput=sumStatFun(dat=admissionDataCurPeriod,var="hivFactor",values=levels(admissionDataCurPeriod$hivFactor)),varDescription="HIV, n (%)",contCat="categorical"))
+tbl2<-rbind(tbl2,reformatForTable(sumStatOutput=sumStatFun(dat=admissionDataCurPeriod,var="tbFactor",values=levels(admissionDataCurPeriod$tbFactor)),varDescription="TB, n (%)",contCat="categorical"))
+tbl2<-rbind(tbl2,reformatForTable(sumStatOutput=sumStatFun(dat=admissionDataCurPeriod,var="hypFactor",values=levels(admissionDataCurPeriod$hypFactor)),varDescription="Hyptertension, n (%)",contCat="categorical"))
+tbl2<-rbind(tbl2,reformatForTable(sumStatOutput=sumStatFun(dat=admissionDataCurPeriod,var="ccfFactor",values=levels(admissionDataCurPeriod$ccfFactor)),varDescription="Congestive cardiac failure, n (%)",contCat="categorical"))
+tbl2<-rbind(tbl2,reformatForTable(sumStatOutput=sumStatFun(dat=admissionDataCurPeriod,var="strokeFactor",values=levels(admissionDataCurPeriod$strokeFactor)),varDescription="Stroke, n (%)",contCat="categorical"))
+tbl2<-rbind(tbl2,reformatForTable(sumStatOutput=sumStatFun(dat=admissionDataCurPeriod,var="diabetesFactor",values=levels(admissionDataCurPeriod$diabetesFactor)),varDescription="Diabetes, n (%)",contCat="categorical"))
 
 varDescIdx<-grep(tbl2$variable,pattern="\\[n=")
 varDescLabels<-tbl2[varDescIdx,1]
 tbl2<-tbl2[-varDescIdx,]
 
-kable(tbl2,col.names=NULL,row.names=F,caption=paste(sep="","Patient characteristics: medical history (period ",minDay," to ",maxDay,")")) %>%
+kable(tbl2,col.names=NULL,row.names=F,caption=paste(sep="","Patient characteristics: medical history (period ",minDay," to ",maxDay,"; total admissions n=",nrow(admissionDataCurPeriod),")")) %>%
   kable_styling("striped", full_width = F) %>%
   #add_header_above(c("Demographics" = 1, paste(sep="","Patients to HDRU from ",minDay," to ",maxDay,"[n = ",nrow(admissionData),"]") = 2)) %>%
   pack_rows(varDescLabels[1], 1, 4) %>%
