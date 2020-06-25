@@ -86,36 +86,87 @@ admissionData$hivFactor<-factor(case_when(
 )
 
 admissionData$tbFactor<-factor(case_when(
-  admissionData$tb==0 ~ "No TB",
+  admissionData$lpp==0 | admissionData$tb==0 ~ "No TB",
   admissionData$tb==1 ~ "TB"),
   levels=c("No TB","TB")
 )
 
 admissionData$hypFactor<-factor(case_when(
-  admissionData$sh==0 ~ "No severe hypertension",
+  admissionData$cpp==0 | admissionData$sh==0 ~ "No severe hypertension",
   admissionData$sh==1 ~ "Severe hypertension"),
   levels=c("No severe hypertension","Hypertension")
 )
 
 admissionData$ccfFactor<-factor(case_when(
-  admissionData$ccf==0 ~ "No congestive cardiac failure",
+  admissionData$cpp==0 | admissionData$ccf==0 ~ "No congestive cardiac failure",
   admissionData$ccf==1 ~ "Congestive cardiac failure"),
   levels=c("No congestive cardiac failure","Congestive cardiac failure")
 )
 
 admissionData$strokeFactor<-factor(case_when(
-  admissionData$stroke==0 ~ "No stroke",
+  admissionData$npp==0 | admissionData$stroke==0 ~ "No stroke",
   admissionData$stroke==1 ~ "Stroke"),
   levels=c("No stroke","Stroke")
 )
 
 admissionData$diabetesFactor<-factor(case_when(
-  admissionData$d_insulin==0 & admissionData$d_tablets==0 & admissionData$d_no_tret==0 ~ "No diabetes",
+  admissionData$hpp==0 | (admissionData$d_insulin==0 & admissionData$d_tablets==0 & admissionData$d_no_tret)==0 ~ "No diabetes",
   admissionData$d_insulin==1 ~ "On insulin",
   admissionData$d_tablets==1 ~ "On tablets",
   admissionData$d_no_tret==1 ~ "Not on treatment"),
   levels=c("No diabetes","On insulin","On tablets","Not on treatment")
 )
+
+admissionData$news2<- # https://en.wikipedia.org/wiki/Early_warning_score#/media/File:National_Early_Warning_Score_chart,_Royal_College_of_Physicians,_version_2.png
+  case_when(admissionData$nvrrate<=8 ~ 3,
+            admissionData$nvrrate>8 & admissionData$nvrrate<=11 ~ 1,
+            admissionData$nvrrate>11 & admissionData$nvrrate<=20 ~ 0,
+            admissionData$nvrrate>20 & admissionData$nvrrate<=24 ~ 2,
+            admissionData$nvrrate>24 ~ 3) +
+  case_when(admissionData$ao2sat<=91 ~ 3,
+            admissionData$ao2sat>91 & admissionData$ao2sat<=93 ~ 2,
+            admissionData$ao2sat>93 & admissionData$ao2sat<96 ~ 1,
+            admissionData$ao2sat>=96 ~ 0) +
+  case_when(admissionData$adm1==1 ~ 2,
+            admissionData$adm1==0 ~ 0) +
+  case_when(admissionData$adtemp<=35 ~ 3,
+            admissionData$adtemp>35 & admissionData$adtemp<=36 ~ 1,
+            admissionData$adtemp>36 & admissionData$adtemp<=38 ~ 0,
+            admissionData$adtemp>38 & admissionData$adtemp<=39 ~ 1,
+            admissionData$adtemp>39 ~ 2) +
+  case_when(admissionData$bp_sys_low<=90 ~ 3,
+            admissionData$bp_sys_low>90 & admissionData$bp_sys_low<=100 ~ 2,
+            admissionData$bp_sys_low>100 & admissionData$bp_sys_low<=110 ~ 1,
+            admissionData$bp_sys_low>110 & admissionData$bp_sys_low<220 ~ 0,
+            admissionData$bp_sys_low>=220 ~ 3) +
+  case_when(admissionData$hrate_low<=40 ~ 3,
+            admissionData$hrate_low>40 & admissionData$hrate_low<=50 ~ 1,
+            admissionData$hrate_low>50 & admissionData$hrate_low<=90 ~ 0,
+            admissionData$hrate_low>90 & admissionData$hrate_low<=110 ~ 1,
+            admissionData$hrate_low>110 & admissionData$hrate_low<=130 ~ 2,
+            admissionData$hrate_low>130 ~ 3) +
+  case_when(admissionData$avpu==1 ~ 0,
+            admissionData$avpu>1 ~ 3) # also gives 3 points for avpu==7 (other)
+
+admissionData$uva<- # doi 10.1136/bmjgh-2017-000344; no GCS or BCS recorded at admission
+  case_when(admissionData$adtemp<36 ~ 2,
+            admissionData$adtemp>=36 ~ 0) +
+  case_when(admissionData$hrate_low<120 ~ 0,
+            admissionData$hrate_low>=120 ~ 1) +
+  case_when(admissionData$nvrrate<30 ~ 0,
+            admissionData$nvrrate>=30 ~ 1) +
+  case_when(admissionData$bp_sys_low<90 ~ 1,
+            admissionData$bp_sys_low>=90 ~ 0) +
+  case_when(admissionData$ao2sat<92 ~ 2,
+            admissionData$ao2sat>=92 ~ 0) +
+  case_when(is.na(admissionData$serop) | admissionData$serop==0 ~ 0,
+            admissionData$serop==1 ~ 2)
+
+admissionData$pfRatio<-
+  case_when(admissionData$abga==2 ~ admissionData$abga2/admissionData$abga6,
+            admissionData$abga==1 ~ exp(0.48+0.78*log(admissionData$ao2sat/admissionData$ao2req))) # doi 10.1097/CCM.0b013e31819cefa9
+
+
 ```
 
 ```{r weekSelect}
@@ -341,24 +392,24 @@ sumStatFun<-function(dat,var,groupVar=NULL,groups=NULL,values=NULL,breaks=NULL,r
 Row {data-width=350}
 -----------------------------------------------------------------------
 
-```{r}
-reformatForTable<-function(sumStatOutput,varDescription,contCat){
+```{r usefuleRoutinesForTables}
+reformatForTable<-function(sumStatOutput,varDescription,contCat,nsmall=2){
   if(contCat=="continuous"){
-    varTmp<-c(paste(sep="",varDescription," [n=",as.integer(sumStatOutput[sumStatOutput[,"overall_stat"]=="N (%)","overall_stat1Val"]),"]"),
+    varTmp<-c(paste(sep="",varDescription," [n=",as.integer(sumStatOutput[sumStatOutput[,"overall_stat"]=="N (%)","overall_stat1Val"])," (",format(nsmall=1,round(digits=1,100*sumStatOutput[sumStatOutput[,"overall_stat"]=="N (%)","overall_stat2Val"])),"%)]"),
               "  Mean (SD)",
               "  Median (IQR)"
     )
     stat1Tmp<-c("",
-                format(nsmall=2,round(digits=2,sumStatOutput[sumStatOutput[,"overall_stat"]=="mean (SD)","overall_stat1Val"])),
-                format(nsmall=2,round(digits=2,sumStatOutput[sumStatOutput[,"overall_stat"]=="median (IQR)","overall_stat1Val"]))                                                                                                                       
+                format(nsmall=nsmall,round(digits=2,sumStatOutput[sumStatOutput[,"overall_stat"]=="mean (SD)","overall_stat1Val"])),
+                format(nsmall=nsmall,round(digits=2,sumStatOutput[sumStatOutput[,"overall_stat"]=="median (IQR)","overall_stat1Val"]))                                                                                                                       
     )
     stat2Tmp<-c("",
-                paste(sep="","(",format(nsmall=2,round(digits=2,sumStatOutput[sumStatOutput[,"overall_stat"]=="mean (SD)","overall_stat2Val"])),")"),
-                paste(sep="","(",paste(collapse=",",format(nsmall=2,round(digits=2,unlist(sumStatOutput[sumStatOutput[,"overall_stat"]=="median (IQR)",c("overall_stat2Val","overall_stat3Val")])))),")")                                                                                                                          
+                paste(sep="","(",format(nsmall=nsmall,round(digits=2,sumStatOutput[sumStatOutput[,"overall_stat"]=="mean (SD)","overall_stat2Val"])),")"),
+                paste(sep="","(",paste(collapse=",",format(nsmall=nsmall,round(digits=2,unlist(sumStatOutput[sumStatOutput[,"overall_stat"]=="median (IQR)",c("overall_stat2Val","overall_stat3Val")])))),")")                                                                                                                          
     )
     
   }else if(contCat=="categorical"){
-    varTmp<-c(paste(sep="",varDescription," [n=",as.integer(sumStatOutput["nonMissing","overall_count"]),"]"),
+    varTmp<-c(paste(sep="",varDescription," [n=",as.integer(sumStatOutput["nonMissing","overall_count"])," (",format(nsmall=1,round(digits=1,100*sumStatOutput["nonMissing","overall_prop"])),"%)]"),
               paste(sep="","  ",rownames(sumStatOutput)[-1])
     )
     stat1Tmp<-""
@@ -378,10 +429,10 @@ reformatForTable<-function(sumStatOutput,varDescription,contCat){
 }
 ```
 
-```{r}
+```{r table1}
 tbl1<-reformatForTable(sumStatOutput=sumStatFun(dat=admissionDataCurPeriod,var="age"),varDescription="Age at admission in years",contCat="continuous")
 tbl1<-rbind(tbl1,reformatForTable(sumStatOutput=sumStatFun(dat=admissionDataCurPeriod,var="sexFactor",values=levels(admissionDataCurPeriod$sexFactor)),varDescription="Sex, n (%)",contCat="categorical"))
-tbl1<-rbind(tbl1,reformatForTable(sumStatOutput=sumStatFun(dat=admissionDataCurPeriod,var="pregFactor",values=levels(admissionDataCurPeriod$pregFactor)),varDescription="Pregnancy status, n (% of females)",contCat="categorical"))
+tbl1<-rbind(tbl1,reformatForTable(sumStatOutput=sumStatFun(dat=admissionDataCurPeriod[admissionDataCurPeriod$sexFactor=="Female",],var="pregFactor",values=levels(admissionDataCurPeriod$pregFactor)),varDescription="Pregnancy status, n (% of females)",contCat="categorical"))
 tbl1<-rbind(tbl1,reformatForTable(sumStatOutput=sumStatFun(dat=admissionDataCurPeriod,var="bmiFactor",values=levels(admissionDataCurPeriod$bmiFactor)),varDescription="Body mass index categories, n (%)",contCat="categorical"))
 
 varDescIdx<-grep(tbl1$variable,pattern="\\[n=")
@@ -397,7 +448,7 @@ kable(tbl1,col.names=NULL,row.names=F,caption=paste(sep="","Patient characterist
   pack_rows(varDescLabels[4], 8, 12)
 ```
 
-```{r}
+```{r table2}
 tbl2<-reformatForTable(sumStatOutput=sumStatFun(dat=admissionDataCurPeriod,var="depFactor",values=levels(admissionDataCurPeriod$depFactor)),varDescription="Dependency prior to admission, n (%)",contCat="categorical")
 tbl2<-rbind(tbl2,reformatForTable(sumStatOutput=sumStatFun(dat=admissionDataCurPeriod,var="hivFactor",values=levels(admissionDataCurPeriod$hivFactor)),varDescription="HIV, n (%)",contCat="categorical"))
 tbl2<-rbind(tbl2,reformatForTable(sumStatOutput=sumStatFun(dat=admissionDataCurPeriod,var="tbFactor",values=levels(admissionDataCurPeriod$tbFactor)),varDescription="TB, n (%)",contCat="categorical"))
@@ -422,3 +473,21 @@ kable(tbl2,col.names=NULL,row.names=F,caption=paste(sep="","Patient characterist
   pack_rows(varDescLabels[7], 17, 20)
 ```
 
+```{r table3}
+tbl3<-reformatForTable(nsmall=0,sumStatOutput=sumStatFun(dat=admissionDataCurPeriod,var="news2"),varDescription="NEWS2 score, n (%)",contCat="continuous")[c(1,3),]
+tbl3<-rbind(tbl3,reformatForTable(nsmall=0,sumStatOutput=sumStatFun(dat=admissionDataCurPeriod,var="uva"),varDescription="UVA score, n (%)",contCat="continuous")[c(1,3),])
+tbl3<-rbind(tbl3,reformatForTable(nsmall=0,sumStatOutput=sumStatFun(dat=admissionDataCurPeriod,var="pfRatio"),varDescription="PF ratio, n (%)",contCat="continuous"))
+
+tbl3$stat2<-gsub(pattern="\\( ",replacement="\\(",tbl3$stat2)
+
+varDescIdx<-grep(tbl3$variable,pattern="\\[n=")
+varDescLabels<-tbl3[varDescIdx,1]
+tbl3<-tbl3[-varDescIdx,]
+
+kable(tbl3,col.names=NULL,row.names=F,caption=paste(sep="","Patient characteristics: acute severity (period ",minDay," to ",maxDay,"; total admissions n=",nrow(admissionDataCurPeriod),")")) %>%
+  kable_styling("striped", full_width = F) %>%
+  #add_header_above(c("Demographics" = 1, paste(sep="","Patients to HDRU from ",minDay," to ",maxDay,"[n = ",nrow(admissionData),"]") = 2)) %>%
+  pack_rows(varDescLabels[1], 1, 1) %>%
+  pack_rows(varDescLabels[2], 2, 2) %>%
+  pack_rows(varDescLabels[3], 3, 4)
+```
