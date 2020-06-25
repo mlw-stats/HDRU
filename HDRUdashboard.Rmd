@@ -27,20 +27,87 @@ admissionData <- read_csv("data/hdru_admission_raw.csv")
   # which variable captures date of discharge?
 dailyData <- read_csv("data/hdru_daily_raw.csv")
 
+# some PIDs in daily data that are not in the admission data
+# setdiff(dailyData$pid,admissionData$pid)
+
+# can have multiple admissions of same individual, so need to append admission date to pid
+admissionData$admission<-rep(1,nrow(admissionData))
+dailyData$admission<-rep(1,nrow(dailyData))
+
+for(pid in names(table(admissionData$pid)[table(admissionData$pid)>1])){
+  admDates<-ymd(admissionData$data_date[admissionData$pid==pid])
+  for(d in sort(admDates,decreasing=F)[-1]){
+    admissionData$admission[admissionData$pid==pid & ymd(admissionData$data_date)>=d]<-admissionData$admission[admissionData$pid==pid & ymd(admissionData$data_date)>=d]+1
+    dailyData$admission[dailyData$pid==pid & ymd(dailyData$data_date)>=d]<-dailyData$admission[dailyData$pid==pid & ymd(dailyData$data_date)>=d]+1
+  }
+}
+
+admissionData$pid<-toupper(admissionData$pid)
+dailyData$pid<-toupper(dailyData$pid)
+admissionData$pidAdm<-paste(sep="_",admissionData$pid,admissionData$admission)
+dailyData$pidAdm<-paste(sep="_",dailyData$pid,dailyData$admission)
+ # note: no outcome for first admission of KAA7V0 recorded (last and only instance is 'alive, still in critical care area') 
+
+admissionDataMissing<-dailyData %>%
+  filter(!is.element(el=pidAdm,set=admissionData$pidAdm)) %>%
+  select(pidAdm,data_date) %>%
+  group_by(pidAdm) %>%
+  summarise(minDate=min(ymd(data_date)))
+
+admissionData<-as_tibble(plyr::rbind.fill(admissionData,admissionDataMissing))
+  
 
 # merge data; needed to calculate duration of organ support; use individual files for tables figures that only focus on admission or daily data
 datAdmTmp<-admissionData 
 datDailyTmp<-dailyData
 colnames(datAdmTmp)<-paste(sep="_","adm",colnames(datAdmTmp)) 
 colnames(datDailyTmp)<-paste(sep="_","dly",colnames(datDailyTmp))
-datMerged<-full_join(datAdmTmp,datDailyTmp,by=c("adm_pid" = "dly_pid"))
+datMerged<-full_join(datAdmTmp,datDailyTmp,by=c("adm_pidAdm" = "dly_pidAdm"))
 
-osaDur<-dailyData %>%
-  select(pid,osa1,osa2) %>%
-  group_by(pid) %>%
-  summarise(osa1Dur=sum(osa1[!is.na(osa1)]),osa2Dur=sum(osa2[!is.na(osa1)])) # counts days where organ support was recorded
+osaDur<-datMerged %>%
+  select(adm_pidAdm,adm_adm1,adm_adm2,adm_adm3,adm_adm4,adm_adm5,adm_adm6,adm_adm7,adm_adm99,adm_data_date,dly_osa1,dly_osa2,dly_osa3,dly_osa4,dly_osa5,dly_osa6,dly_osa7,dly_osa8,dly_data_date) %>%
+  group_by(adm_pidAdm) %>%
+  summarise(adm_adm1=first(adm_adm1),
+            adm_adm2=first(adm_adm2),
+            adm_adm3=first(adm_adm3),
+            adm_adm4=first(adm_adm4),
+            adm_adm5=first(adm_adm5),
+            adm_adm6=first(adm_adm6),
+            adm_adm7=first(adm_adm7),
+            adm_adm99=first(adm_adm99),
+            adm_data_date=first(adm_data_date),
+            osa1Dur=sum(dly_osa1[!is.na(dly_osa1)]),
+            osa2Dur=sum(dly_osa2[!is.na(dly_osa2)]),
+            osa3Dur=sum(dly_osa3[!is.na(dly_osa3)]),
+            osa4Dur=sum(dly_osa4[!is.na(dly_osa4)]),
+            osa5Dur=sum(dly_osa5[!is.na(dly_osa5)]),
+            osa6Dur=sum(dly_osa6[!is.na(dly_osa6)]),
+            osa7Dur=sum(dly_osa7[!is.na(dly_osa7)]),
+            osa8Dur=sum(dly_osa8[!is.na(dly_osa8)]),
+            dly_first_data=min(ymd(dly_data_date))) # counts days where organ support was recorded
 
-admissionData<-left_join(admissionData,osaDur,by="pid")
+tmp1<-ifelse(!is.na(osaDur$adm_adm1) & osaDur$adm_adm1==1 & (is.na(osaDur$dly_first_data) | (!is.na(osaDur$adm_data_date) & ymd(osaDur$adm_data_date)<ymd(osaDur$dly_first_data))),1,0)
+tmp2<-ifelse(!is.na(osaDur$adm_adm2) & osaDur$adm_adm2==1 & (is.na(osaDur$dly_first_data) | (!is.na(osaDur$adm_data_date) & ymd(osaDur$adm_data_date)<ymd(osaDur$dly_first_data))),1,0)
+tmp3<-ifelse(!is.na(osaDur$adm_adm3) & osaDur$adm_adm3==1 & (is.na(osaDur$dly_first_data) | (!is.na(osaDur$adm_data_date) & ymd(osaDur$adm_data_date)<ymd(osaDur$dly_first_data))),1,0)
+tmp4<-ifelse(!is.na(osaDur$adm_adm4) & osaDur$adm_adm4==1 & (is.na(osaDur$dly_first_data) | (!is.na(osaDur$adm_data_date) & ymd(osaDur$adm_data_date)<ymd(osaDur$dly_first_data))),1,0)
+tmp5<-ifelse(!is.na(osaDur$adm_adm5) & osaDur$adm_adm5==1 & (is.na(osaDur$dly_first_data) | (!is.na(osaDur$adm_data_date) & ymd(osaDur$adm_data_date)<ymd(osaDur$dly_first_data))),1,0)
+tmp6<-ifelse(!is.na(osaDur$adm_adm6) & osaDur$adm_adm6==1 & (is.na(osaDur$dly_first_data) | (!is.na(osaDur$adm_data_date) & ymd(osaDur$adm_data_date)<ymd(osaDur$dly_first_data))),1,0)
+tmp7<-ifelse(!is.na(osaDur$adm_adm7) & osaDur$adm_adm7==1 & (is.na(osaDur$dly_first_data) | (!is.na(osaDur$adm_data_date) & ymd(osaDur$adm_data_date)<ymd(osaDur$dly_first_data))),1,0)
+tmp8<-ifelse(!is.na(osaDur$adm_adm99) & osaDur$adm_adm99==1 & (is.na(osaDur$dly_first_data) | (!is.na(osaDur$adm_data_date) & ymd(osaDur$adm_data_date)<ymd(osaDur$dly_first_data))),1,0)
+
+osaDur$osa1Dur<-osaDur$osa1Dur+tmp1
+osaDur$osa2Dur<-osaDur$osa2Dur+tmp2
+osaDur$osa3Dur<-osaDur$osa3Dur+tmp3
+osaDur$osa4Dur<-osaDur$osa4Dur+tmp4
+osaDur$osa5Dur<-osaDur$osa5Dur+tmp5
+osaDur$osa6Dur<-osaDur$osa6Dur+tmp6
+osaDur$osa7Dur<-osaDur$osa7Dur+tmp7
+osaDur$osa8Dur<-osaDur$osa8Dur+tmp8
+
+rm(tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,tmp7,tmp8)
+
+
+admissionData<-left_join(admissionData,osaDur,by=c("pidAdm" = "adm_pidAdm"))
 # table(admissionData$adm1,admissionData$osa1Dur) # conflicts: 10 with adm1==1, but osa1Dur==0, 1 with adm1==0 but osa1Dur>0
 # table(admissionData$adm2,admissionData$osa2Dur) # conflicts: 4 with adm2==1, but osa2Dur==0, 1 with adm2==0 but osa2Dur>0
 
@@ -164,9 +231,33 @@ admissionData$uva<- # doi 10.1136/bmjgh-2017-000344; no GCS or BCS recorded at a
 
 admissionData$pfRatio<-
   case_when(admissionData$abga==2 ~ admissionData$abga2/admissionData$abga6,
-            admissionData$abga==1 ~ exp(0.48+0.78*log(admissionData$ao2sat/admissionData$ao2req))) # doi 10.1097/CCM.0b013e31819cefa9
+            admissionData$abga==1 ~ 10^(0.48+0.78*log10(admissionData$ao2sat/admissionData$ao2req))) # doi 10.1097/CCM.0b013e31819cefa9; note log10 in the equation
 
+admissionData<-admissionData %>% add_column(
+  agegrp=case_when(admissionData$age<30 ~ "0-30",
+                    admissionData$age>=30 & admissionData$age<40 ~ "30-39",
+                    admissionData$age>=40 & admissionData$age<50 ~ "40-49",
+                    admissionData$age>=50 & admissionData$age<60 ~ "50-59",
+                    admissionData$age>=60 ~ "60+"))
 
+dailyData$outcomeFactor<-factor(case_when(
+  dailyData$outcome==0 ~ "Dead",
+  dailyData$outcome==1 ~ "Alive, in critical care",
+  dailyData$outcome==2 ~ "Alive, discharged",
+  dailyData$outcome==3 ~ "Absconded"),
+  levels=c("Dead","Alive, in critical care","Alive, discharged","Absconded")
+)
+
+dailyData$admissionDate<-ymd(admissionData$data_date[match(dailyData$pidAdm,admissionData$pidAdm)])
+
+datOutcome<-dailyData %>%
+  arrange(pidAdm,ymd(data_date)) %>%
+  mutate(pidAdm=pidAdm,outcome=ifelse(!is.na(outcome) & outcome!=1,1,0)) %>%
+  group_by(pidAdm) %>%
+  summarise(outcomeKnown=max(outcome),outcome=last(outcomeFactor),LOS=max(ymd(data_date)-ymd(admissionDate)))
+levels(datOutcome$outcome)[levels(datOutcome$outcome)=="Alive, in critical care"]<-"Unknown"
+
+admissionData<-left_join(admissionData,datOutcome,by="pidAdm")
 ```
 
 ```{r weekSelect}
@@ -187,16 +278,10 @@ Row {data-width=350}
 ### Weekly admissions, available outcome data, organ support
 
 ```{r}
-datOutcome<-dailyData %>%
-  mutate(pid=pid,outcome=ifelse(!is.na(outcome) & outcome!=1,1,0)) %>%
-  group_by(pid) %>%
-  summarise(outcomeKnown=max(outcome))
-
 admissionsWeekly<-admissionData %>%
-  left_join(y=datOutcome,by="pid") %>%
   mutate(outcomeKnown=ifelse(is.na(outcomeKnown),0,1)) %>%
   group_by(week=cut(ymd(admissionData$data_date),"week",start.on.monday=TRUE),.drop=F) %>%
-  summarise(n=sum(!is.na(pid)),nOutcomeKnown=sum(outcomeKnown==1)) %>%
+  summarise(n=sum(!is.na(pidAdm)),nOutcomeKnown=sum(outcomeKnown==1)) %>%
   pivot_longer(cols=-week,names_to="countType",values_to="n")
   # outcome data needs to be taken from the daily data
 admissionsWeekly$countType<-factor(admissionsWeekly$countType,levels=c("n","nOutcomeKnown"))
@@ -214,24 +299,15 @@ admissionsWeekly %>%
 ### Age and sex distribution (for period `r minDay` to `r maxDay`)
 
 ```{r}
-admissionData$agegrp <- NA
-admissionData$agegrp[admissionData$age <= 30] <- "0-30"
-admissionData$agegrp[admissionData$age > 30 & admissionData$age <= 39.9] <- "30-39"
-admissionData$agegrp[admissionData$age > 40 & admissionData$age <= 49.9] <- "40-49"
-admissionData$agegrp[admissionData$age > 50 & admissionData$age <= 59.9] <- "50-59"
-admissionData$agegrp[admissionData$age > 60] <- "60+"
-admissionData$agegrp<-factor(admissionData$agegrp)
-
-admissionDataSex <- admissionData %>%
-  select(pid,data_date,agegrp,sexFactor) %>%
-  filter(ymd(data_date)>=ymd(minDay) & ymd(data_date)<ymd(maxDay)) %>%
+admissionDataSex <- admissionDataCurPeriod %>%
+  select(pidAdm,data_date,agegrp,sexFactor) %>%
   group_by(sexFactor,agegrp) %>%
-  dplyr::summarize(nadmn = sum(!is.na(pid))) %>%
+  dplyr::summarize(nadmn = sum(!is.na(pidAdm))) %>%
   ungroup() %>%
   tidyr::complete(sexFactor,agegrp,fill=list(nadmn=0))
 
 ggplot(admissionDataSex,aes(agegrp,nadmn,fill=sexFactor)) +
-  geom_bar(position="dodge",stat="identity") +
+  geom_bar(position="stack",stat="identity") +
   xlab("Age at admission") +
   ylab("Frequency") +
   theme(legend.position="top",text=element_text(size=28)) +
@@ -244,16 +320,10 @@ Row {data-width=350}
 ### Organ support
 
 ```{r}
-datOutcome<-dailyData %>%
-  mutate(pid=pid,outcome=ifelse(!is.na(outcome) & outcome!=1,1,0)) %>%
-  group_by(pid) %>%
-  summarise(outcomeKnown=max(outcome))
-
 admissionsWeekly<-admissionData %>%
-  left_join(y=datOutcome,by="pid") %>%
   mutate(outcomeKnown=ifelse(is.na(outcomeKnown),0,1)) %>%
-  group_by(week=cut(ymd(data_date),"week",start.on.monday=TRUE)) %>%
-  summarise(n=sum(!is.na(pid)),percOrganSupportOxygen=100*sum(adm1==1)/sum(!is.na(pid)),percOrganSupportFluidBalance=100*sum(adm2=1)/sum(!is.na(pid))) %>%
+  group_by(week=cut(ymd(admissionData$data_date),"week",start.on.monday=TRUE),.drop=F) %>%
+  summarise(n=sum(!is.na(pidAdm)),percOrganSupportOxygen=100*sum(adm1==1)/sum(!is.na(pidAdm)),percOrganSupportFluidBalance=100*sum(adm2==1)/sum(!is.na(pidAdm))) %>%
   filter(is.element(el=ymd(week),set=ymd(curWeek)))
 
 admissionsWeeklyLong <-admissionsWeekly %>%
@@ -279,8 +349,8 @@ ggplot() +
 ```{r}
 admissionData %>%
   filter(ymd(data_date)>=ymd(minDay) & ymd(data_date)<ymd(maxDay)) %>%
-  select(pid,osa1Dur,osa2Dur) %>%
-  pivot_longer(cols=-pid,names_to="osType",values_to="duration") %>%
+  select(pidAdm,osa1Dur,osa2Dur) %>%
+  pivot_longer(cols=-pidAdm,names_to="osType",values_to="duration") %>%
   mutate(osType=factor(ifelse(osType=="osa1Dur","Oxygen administration.","Careful fluid balance."),levels=c("Oxygen administration.","Careful fluid balance."))) %>%
   
   ggplot(mapping=aes(x=osType,y=duration,fill=osType)) +
@@ -289,6 +359,18 @@ admissionData %>%
   theme(legend.position="none",text=element_text(size=28)) +
   xlab("Organ support") +
   ylab("Duration")
+
+  # ggplot() +
+  # stat_summary(
+  #   mapping = aes(x = osType, y = duration, color=osType, lwd=1.75),
+  #   fun.min = min,
+  #   fun.max = max,
+  #   fun = median
+  # ) +
+  # scale_color_manual(values=wes_palette("Zissou1",n=4,type="discrete")[c(1,4)]) +
+  # theme(legend.position="none",text=element_text(size=28)) +
+  # xlab("Organ support") +
+  # ylab("Duration")
 ```
 
 
@@ -297,7 +379,7 @@ Tables {data-icon="fa-list"}
 ======================================================================
 
 
-```{r}
+```{r usefulRoutinesForTables}
 sumStatFun<-function(dat,var,groupVar=NULL,groups=NULL,values=NULL,breaks=NULL,rightTF=F){
   # dat = data frame
   # var = variable in dat for which the summary statistics are to be computed
@@ -387,12 +469,7 @@ sumStatFun<-function(dat,var,groupVar=NULL,groups=NULL,values=NULL,breaks=NULL,r
     
   return(res)
 }
-```
 
-Row {data-width=350}
------------------------------------------------------------------------
-
-```{r usefuleRoutinesForTables}
 reformatForTable<-function(sumStatOutput,varDescription,contCat,nsmall=2){
   if(contCat=="continuous"){
     varTmp<-c(paste(sep="",varDescription," [n=",as.integer(sumStatOutput[sumStatOutput[,"overall_stat"]=="N (%)","overall_stat1Val"])," (",format(nsmall=1,round(digits=1,100*sumStatOutput[sumStatOutput[,"overall_stat"]=="N (%)","overall_stat2Val"])),"%)]"),
@@ -428,6 +505,9 @@ reformatForTable<-function(sumStatOutput,varDescription,contCat,nsmall=2){
   return(res)
 }
 ```
+
+Row {data-width=350}
+-----------------------------------------------------------------------
 
 ```{r table1}
 tbl1<-reformatForTable(sumStatOutput=sumStatFun(dat=admissionDataCurPeriod,var="age"),varDescription="Age at admission in years",contCat="continuous")
@@ -474,9 +554,9 @@ kable(tbl2,col.names=NULL,row.names=F,caption=paste(sep="","Patient characterist
 ```
 
 ```{r table3}
-tbl3<-reformatForTable(nsmall=0,sumStatOutput=sumStatFun(dat=admissionDataCurPeriod,var="news2"),varDescription="NEWS2 score, n (%)",contCat="continuous")[c(1,3),]
-tbl3<-rbind(tbl3,reformatForTable(nsmall=0,sumStatOutput=sumStatFun(dat=admissionDataCurPeriod,var="uva"),varDescription="UVA score, n (%)",contCat="continuous")[c(1,3),])
-tbl3<-rbind(tbl3,reformatForTable(nsmall=0,sumStatOutput=sumStatFun(dat=admissionDataCurPeriod,var="pfRatio"),varDescription="PF ratio, n (%)",contCat="continuous"))
+tbl3<-reformatForTable(nsmall=0,sumStatOutput=sumStatFun(dat=admissionDataCurPeriod,var="news2"),varDescription="NEWS2 score",contCat="continuous")[c(1,3),]
+tbl3<-rbind(tbl3,reformatForTable(nsmall=0,sumStatOutput=sumStatFun(dat=admissionDataCurPeriod,var="uva"),varDescription="UVA score",contCat="continuous")[c(1,3),])
+tbl3<-rbind(tbl3,reformatForTable(nsmall=0,sumStatOutput=sumStatFun(dat=admissionDataCurPeriod,var="pfRatio"),varDescription="PF ratio",contCat="continuous"))
 
 tbl3$stat2<-gsub(pattern="\\( ",replacement="\\(",tbl3$stat2)
 
@@ -490,4 +570,30 @@ kable(tbl3,col.names=NULL,row.names=F,caption=paste(sep="","Patient characterist
   pack_rows(varDescLabels[1], 1, 1) %>%
   pack_rows(varDescLabels[2], 2, 2) %>%
   pack_rows(varDescLabels[3], 3, 4)
+```
+
+```{r table4}
+admissionDataCurPeriod$outcome<-factor(case_when(
+  admissionDataCurPeriod$outcome=="Dead"~"Died",
+  admissionDataCurPeriod$outcome=="Alive, discharged"~"Discharged",
+  admissionDataCurPeriod$outcome=="Absconded"~"Absconded",
+  admissionDataCurPeriod$outcome=="Unknown"~"Unknown"),
+  levels=c("Discharged","Died","Absconded","Unknown"))
+
+tbl4<-reformatForTable(sumStatOutput=sumStatFun(dat=admissionDataCurPeriod,var="outcome",values=levels(admissionDataCurPeriod$outcome)),varDescription="Outcome at the end of critical care, n (%)",contCat="categorical")
+tbl4<-rbind(tbl4,reformatForTable(nsmall=0,sumStatOutput=sumStatFun(dat=admissionDataCurPeriod,var="LOS"),varDescription="Length of stay",contCat="continuous")[c(1,3),])
+tbl4<-rbind(tbl4,reformatForTable(nsmall=0,sumStatOutput=sumStatFun(dat=admissionDataCurPeriod[admissionDataCurPeriod$outcome=="Discharged",],var="LOS"),varDescription="Length of stay (critical care survivors)",contCat="continuous")[c(1,3),])
+tbl4<-rbind(tbl4,reformatForTable(nsmall=0,sumStatOutput=sumStatFun(dat=admissionDataCurPeriod[admissionDataCurPeriod$outcome=="Died",],var="LOS"),varDescription="Length of stay (critical care non-survivors)",contCat="continuous")[c(1,3),])
+
+varDescIdx<-grep(tbl4$variable,pattern="\\[n=")
+varDescLabels<-tbl4[varDescIdx,1]
+tbl4<-tbl4[-varDescIdx,]
+
+kable(tbl4,col.names=NULL,row.names=F,caption=paste(sep="","Patient outcomes (period ",minDay," to ",maxDay,"; total admissions n=",nrow(admissionDataCurPeriod),")")) %>%
+  kable_styling("striped", full_width = F) %>%
+  #add_header_above(c("Demographics" = 1, paste(sep="","Patients to HDRU from ",minDay," to ",maxDay,"[n = ",nrow(admissionData),"]") = 2)) %>%
+  pack_rows(varDescLabels[1], 1, 4) %>%
+  pack_rows(varDescLabels[2], 5, 5) %>%
+  pack_rows(varDescLabels[3], 6, 6) %>%
+  pack_rows(varDescLabels[4], 7, 7)
 ```
