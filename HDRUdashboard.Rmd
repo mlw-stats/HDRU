@@ -23,6 +23,7 @@ Figures {data-icon="fa-list"}
 
 ```{r dataImport}
 admissionData <- read_csv("data/hdru_admission_raw.csv")
+#admissionData<-read_csv("data/hdru_admission_patient_outcome_raw.csv")
   # not all PIDs are unique, e.g. KAA7V0 - can people be admitted, then discharged, then re-admitted from HDRU?
   # which variable captures date of discharge?
 dailyData <- read_csv("data/hdru_daily_raw.csv")
@@ -31,8 +32,11 @@ dailyData <- read_csv("data/hdru_daily_raw.csv")
 # setdiff(dailyData$pid,admissionData$pid)
 
 # can have multiple admissions of same individual, so need to append admission date to pid
-admissionData$admission<-rep(1,nrow(admissionData))
-dailyData$admission<-rep(1,nrow(dailyData))
+admissionData<-admissionData %>% add_column(admission=1)
+dailyData<-dailyData %>% add_column(admission=1)
+
+admissionData$data_date<-ymd(admissionData$data_date)
+dailyData$data_date<-ymd(dailyData$data_date)
 
 for(pid in names(table(admissionData$pid)[table(admissionData$pid)>1])){
   admDates<-ymd(admissionData$data_date[admissionData$pid==pid])
@@ -44,7 +48,7 @@ for(pid in names(table(admissionData$pid)[table(admissionData$pid)>1])){
 
 admissionData$pid<-toupper(admissionData$pid)
 dailyData$pid<-toupper(dailyData$pid)
-admissionData$pidAdm<-paste(sep="_",admissionData$pid,admissionData$admission)
+admissionData<-admissionData %>% add_column(pidAdm=paste(sep="_",admissionData$pid,admissionData$admission))
 dailyData$pidAdm<-paste(sep="_",dailyData$pid,dailyData$admission)
  # note: no outcome for first admission of KAA7V0 recorded (last and only instance is 'alive, still in critical care area') 
 
@@ -111,27 +115,58 @@ admissionData<-left_join(admissionData,osaDur,by=c("pidAdm" = "adm_pidAdm"))
 # table(admissionData$adm1,admissionData$osa1Dur) # conflicts: 10 with adm1==1, but osa1Dur==0, 1 with adm1==0 but osa1Dur>0
 # table(admissionData$adm2,admissionData$osa2Dur) # conflicts: 4 with adm2==1, but osa2Dur==0, 1 with adm2==0 but osa2Dur>0
 
-admissionData$sexFactor<-factor(ifelse(admissionData$sex==0,"Female","Male"),levels=c("Female","Male"))
-admissionData$pregFactor<-factor(ifelse(admissionData$pregnancy==3,"Not known to be pregnant",ifelse(admissionData$pregnancy==2,"Recently pregnant",ifelse(admissionData$pregnancy==1,"Currently pregnant.",NA))),levels=c("Not known to be pregnant","Recently pregnant","Currently pregnant"))
-admissionData$weight<-4*admissionData$muac-50
+admissionData<-admissionData %>% add_column(sexFactor=factor(ifelse(admissionData$sex==0,"Female","Male"),levels=c("Female","Male")))
+admissionData<-admissionData %>% add_column(pregFactor=factor(ifelse(admissionData$pregnancy==3,"Not known to be pregnant",ifelse(admissionData$pregnancy==2,"Recently pregnant",ifelse(admissionData$pregnancy==1,"Currently pregnant.",NA))),levels=c("Not known to be pregnant","Recently pregnant","Currently pregnant")))
+admissionData<-admissionData %>% add_column(weight=4*admissionData$muac-50)
   # Cattermole et al (2016)
   # some super light people!
-admissionData$height<-case_when(
-  admissionData$sexFactor=="Male" ~ (4.605*admissionData$ulnar_l+1.308*admissionData$age+28.003)/100,
-  admissionData$sexFactor=="Female" ~ (4.459*admissionData$ulnar_l+1.315*admissionData$age+31.485)/100
-)
-  # Gauld et al (2004); formula gives result in cm, hence dividing by 100 for meters
-  # very very tall people!!!
-admissionData$bmi<-admissionData$weight/(admissionData$height^2)
+
+# height from ulna length estimation was based on a formula for children - hence why so many tall people!
+# admissionData$height<-case_when(
+#   admissionData$sexFactor=="Male" ~ (4.605*admissionData$ulnar_l+1.308*admissionData$age+28.003)/100,
+#   admissionData$sexFactor=="Female" ~ (4.459*admissionData$ulnar_l+1.315*admissionData$age+31.485)/100
+# )
+#   # Gauld et al (2004); formula gives result in cm, hence dividing by 100 for meters
+#   # very very tall people!!!
+
+ulna2HeightConvTable<-read_csv("../20200716_UlnaHeight/DOI_10.1002_9781118786529.csv") # as per Table 10.3 from https://onlinelibrary.wiley.com/doi/pdf/10.1002/9781118786529.app10
+
+ulna2HeightConvFun<-function(ulna,sex,age,convTab=ulna2HeightConvTable){
+  col<-case_when(
+    sex=="Male" & age<65 ~ "menBelow65yrs_m",
+    sex=="Male" & age>=5 ~ "menAbove65yrs_m",
+    sex=="Female" & age<65 ~ "womenBelow65yrs_m",
+    sex=="Female" & age>=65 ~ "womenAbove65yrs_m",
+  )
+  
+  f<-list()
+  f[["menBelow65yrs_m"]]<-approxfun(x=convTab$ulna_cm,y=convTab$menBelow65yrs_m,method="linear",rule=1)
+  f[["menAbove65yrs_m"]]<-approxfun(x=convTab$ulna_cm,y=convTab$menAbove65yrs_m,method="linear",rule=1)
+  f[["womenBelow65yrs_m"]]<-approxfun(x=convTab$ulna_cm,y=convTab$womenBelow65yrs_m,method="linear",rule=1)
+  f[["womenAbove65yrs_m"]]<-approxfun(x=convTab$ulna_cm,y=convTab$womenAbove65yrs_m,method="linear",rule=1)
+  
+  res<-ifelse(col=="menBelow65yrs_m",1,0)*f[["menBelow65yrs_m"]](ulna) +
+    ifelse(col=="menAbove65yrs_m",1,0)*f[["menAbove65yrs_m"]](ulna) +
+    ifelse(col=="womenBelow65yrs_m",1,0)*f[["womenBelow65yrs_m"]](ulna) +
+    ifelse(col=="womenAbove65yrs_m",1,0)*f[["womenAbove65yrs_m"]](ulna)
+  
+  return(res)
+}
+
+admissionData<-admissionData %>% add_column(height=ulna2HeightConvFun(ulna=admissionData$ulnar_l,sex=admissionData$sexFactor,age=admissionData$age))
+  # still fairly tall people: median height is 1.80m -- ie. half are 1.80m or taller...
+  # but better than with previous formula from Gauld et al (2004)
+
+admissionData<-admissionData %>% add_column(bmi=admissionData$weight/(admissionData$height^2))
   # these strike me as exceptionally low; lowest ever recorded BMI is 7.5, yet her we have several below that...
-admissionData$bmiFactor<-factor(case_when(
+admissionData<-admissionData %>% add_column(bmiFactor=factor(case_when(
   admissionData$bmi<18.5 ~ "<18.5",
   admissionData$bmi>=18.5 & admissionData$bmi<25 ~ "18.5-<25",
   admissionData$bmi>=25 & admissionData$bmi<30 ~ "25-<30",
   admissionData$bmi>=30 & admissionData$bmi<40~ "30-<40",
   admissionData$bmi>=40 ~ "40+"),
   levels=c("<18.5","18.5-<25","25-<30","30-<40","40+")
-)
+))
 
 admissionData$depFactor<-factor(case_when(
   admissionData$dependecy==1 ~ "Able to live without assistance in daily activities",
@@ -230,8 +265,8 @@ admissionData$uva<- # doi 10.1136/bmjgh-2017-000344; no GCS or BCS recorded at a
             admissionData$serop==1 ~ 2)
 
 admissionData$pfRatio<-
-  case_when(admissionData$abga==2 ~ admissionData$abga2/admissionData$abga6,
-            admissionData$abga==1 ~ 10^(0.48+0.78*log10(admissionData$ao2sat/admissionData$ao2req))) # doi 10.1097/CCM.0b013e31819cefa9; note log10 in the equation
+  case_when(admissionData$abga==2 ~ admissionData$abga2/admissionData$abga6, # need to check with DMSU what units these would be measured in
+            admissionData$abga==1 ~ (10^(0.48+0.78*log10(admissionData$ao2sat/(admissionData$ao2req/100))))/7.50062) # doi 10.1097/CCM.0b013e31819cefa9; note log10 in the equation; confirm that FiO2 needs to be a fraction, but SpO2 a percentage -- seems too strange...
 
 admissionData<-admissionData %>% add_column(
   agegrp=case_when(admissionData$age<30 ~ "0-30",
@@ -262,7 +297,7 @@ admissionData<-left_join(admissionData,datOutcome,by="pidAdm")
 
 ```{r weekSelect}
 #curWeek<-dmy("27/04/2020","04/05/2020","11/05/2020","18/05/2020","25/05/2020")
-curWeek<-dmy("27/04/2020","04/05/2020","11/05/2020","18/05/2020","25/05/2020","01/06/2020","08/06/2020")
+curWeek<-dmy("27/04/2020","04/05/2020","11/05/2020","18/05/2020","25/05/2020","01/06/2020","08/06/2020","15/06/2020")
   # weeks to start on Mondays
   # this variable to become a shiny input / selection field
 minDay<-min(ymd(curWeek))
@@ -292,6 +327,7 @@ admissionsWeekly %>%
   geom_bar(position="dodge",stat="identity") +
   scale_fill_manual(values=wes_palette("Zissou1",n=4,type="discrete")[c(1,4)],name="",labels=c("admitted","outcome recorded")) +
   ylab("Frequency") +
+  theme_minimal() +
   theme(legend.position="top",text=element_text(size=28),axis.text.x=element_text(angle = 30, hjust = 1)) +
   xlab("Week") 
 ```
@@ -310,6 +346,7 @@ ggplot(admissionDataSex,aes(agegrp,nadmn,fill=sexFactor)) +
   geom_bar(position="stack",stat="identity") +
   xlab("Age at admission") +
   ylab("Frequency") +
+  theme_minimal() +
   theme(legend.position="top",text=element_text(size=28)) +
   scale_fill_manual(values = wes_palette("Zissou1",n=4,type="discrete")[c(1,4)],name="")
 ```
@@ -339,6 +376,7 @@ ggplot() +
   geom_bar(data=admissionsWeeklyLong,mapping=aes(x=week,y=percentage,fill=percType),position="dodge",stat="identity") +
   scale_fill_manual(values=wes_palette("Zissou1",n=4,type="discrete")[c(1,4)],name="",labels=c("required oxygen support","required fluid balance")) +
   ylab("Percentage") +
+  theme_minimal() +
   theme(legend.position="top",text=element_text(size=28),axis.text.x=element_text(angle = 30, hjust = 1)) +
   xlab("Week") +
   geom_text(data=admissionsWeekly,mapping=aes(x=week,y=-4,label=nLabel),colour="grey50",size=8)
@@ -356,6 +394,7 @@ admissionData %>%
   ggplot(mapping=aes(x=osType,y=duration,fill=osType)) +
   geom_boxplot() +
   scale_fill_manual(values=wes_palette("Zissou1",n=4,type="discrete")[c(1,4)]) +
+  theme_minimal() +
   theme(legend.position="none",text=element_text(size=28)) +
   xlab("Organ support") +
   ylab("Duration")
@@ -557,6 +596,7 @@ kable(tbl2,col.names=NULL,row.names=F,caption=paste(sep="","Patient characterist
 tbl3<-reformatForTable(nsmall=0,sumStatOutput=sumStatFun(dat=admissionDataCurPeriod,var="news2"),varDescription="NEWS2 score",contCat="continuous")[c(1,3),]
 tbl3<-rbind(tbl3,reformatForTable(nsmall=0,sumStatOutput=sumStatFun(dat=admissionDataCurPeriod,var="uva"),varDescription="UVA score",contCat="continuous")[c(1,3),])
 tbl3<-rbind(tbl3,reformatForTable(nsmall=0,sumStatOutput=sumStatFun(dat=admissionDataCurPeriod,var="pfRatio"),varDescription="PF ratio",contCat="continuous"))
+tbl3<-rbind(tbl3,reformatForTable(nsmall=0,sumStatOutput=sumStatFun(dat=admissionDataCurPeriod,var="pfRatio",breaks=c(0,13.3,26.7,Inf)),varDescription="PF ratio",contCat="categorical"))
 
 tbl3$stat2<-gsub(pattern="\\( ",replacement="\\(",tbl3$stat2)
 
@@ -569,7 +609,7 @@ kable(tbl3,col.names=NULL,row.names=F,caption=paste(sep="","Patient characterist
   #add_header_above(c("Demographics" = 1, paste(sep="","Patients to HDRU from ",minDay," to ",maxDay,"[n = ",nrow(admissionData),"]") = 2)) %>%
   pack_rows(varDescLabels[1], 1, 1) %>%
   pack_rows(varDescLabels[2], 2, 2) %>%
-  pack_rows(varDescLabels[3], 3, 4)
+  pack_rows(varDescLabels[3], 3, 7)
 ```
 
 ```{r table4}
@@ -580,10 +620,31 @@ admissionDataCurPeriod$outcome<-factor(case_when(
   admissionDataCurPeriod$outcome=="Unknown"~"Unknown"),
   levels=c("Discharged","Died","Absconded","Unknown"))
 
+admissionDataCurPeriod<-admissionDataCurPeriod %>%
+  add_column(
+    adm1Factor=factor(ifelse(admissionDataCurPeriod$adm1==1,"Oxygen","No oxygen"),levels=c("Oxygen","No oxygen")),
+    adm2Factor=factor(ifelse(admissionDataCurPeriod$adm2==1,"Fluid balance","No fluid balance"),levels=c("Fluid balance","No fluid balance")),
+    adm3Factor=factor(ifelse(admissionDataCurPeriod$adm3==1,"Neurological observation","No neurological observation"),levels=c("Neurological observation","No neurological observation")),
+    adm4Factor=factor(ifelse(admissionDataCurPeriod$adm4==1,"Intravenous drug (not vasoactive)","No intravenous drug (not vasoactive)"),levels=c("Intravenous drug (not vasoactive)","No intravenous drug (not vasoactive)")),
+    adm5Factor=factor(ifelse(admissionDataCurPeriod$adm5==1,"Intravenous drug (vasoactive)","No intravenous drug (vasoactive)"),levels=c("Intravenous drug (vasoactive)","No intravenous drug (vasoactive)")),
+    adm6Factor=factor(ifelse(admissionDataCurPeriod$adm6==1,"Continuous monitoring","No continuous monitoring"),levels=c("Continuous monitoring","No continuous monitoring")),
+    adm7Factor=factor(ifelse(admissionDataCurPeriod$adm7==1,"Intubation & ventilation","No intubation & ventilation"),levels=c("Intubation & ventilation","No intubation & ventilation")),
+    adm99Factor=factor(ifelse(admissionDataCurPeriod$adm99==1,"Other","No other"),levels=c("Other","No other"))
+  )
+
 tbl4<-reformatForTable(sumStatOutput=sumStatFun(dat=admissionDataCurPeriod,var="outcome",values=levels(admissionDataCurPeriod$outcome)),varDescription="Outcome at the end of critical care, n (%)",contCat="categorical")
 tbl4<-rbind(tbl4,reformatForTable(nsmall=0,sumStatOutput=sumStatFun(dat=admissionDataCurPeriod,var="LOS"),varDescription="Length of stay",contCat="continuous")[c(1,3),])
 tbl4<-rbind(tbl4,reformatForTable(nsmall=0,sumStatOutput=sumStatFun(dat=admissionDataCurPeriod[admissionDataCurPeriod$outcome=="Discharged",],var="LOS"),varDescription="Length of stay (critical care survivors)",contCat="continuous")[c(1,3),])
 tbl4<-rbind(tbl4,reformatForTable(nsmall=0,sumStatOutput=sumStatFun(dat=admissionDataCurPeriod[admissionDataCurPeriod$outcome=="Died",],var="LOS"),varDescription="Length of stay (critical care non-survivors)",contCat="continuous")[c(1,3),])
+tbl4<-rbind(tbl4,reformatForTable(sumStatOutput=sumStatFun(dat=admissionDataCurPeriod,var="adm1Factor",values=levels(admissionDataCurPeriod$adm1Factor)),varDescription="Organ support, n (%)",contCat="categorical")[1:2,])
+tbl4<-rbind(tbl4,reformatForTable(sumStatOutput=sumStatFun(dat=admissionDataCurPeriod,var="adm2Factor",values=levels(admissionDataCurPeriod$adm2Factor)),varDescription="Organ support, n (%)",contCat="categorical")[1:2,])
+tbl4<-rbind(tbl4,reformatForTable(sumStatOutput=sumStatFun(dat=admissionDataCurPeriod,var="adm3Factor",values=levels(admissionDataCurPeriod$adm3Factor)),varDescription="Organ support, n (%)",contCat="categorical")[1:2,])
+tbl4<-rbind(tbl4,reformatForTable(sumStatOutput=sumStatFun(dat=admissionDataCurPeriod,var="adm4Factor",values=levels(admissionDataCurPeriod$adm4Factor)),varDescription="Organ support, n (%)",contCat="categorical")[1:2,])
+tbl4<-rbind(tbl4,reformatForTable(sumStatOutput=sumStatFun(dat=admissionDataCurPeriod,var="adm5Factor",values=levels(admissionDataCurPeriod$adm5Factor)),varDescription="Organ support, n (%)",contCat="categorical")[1:2,])
+tbl4<-rbind(tbl4,reformatForTable(sumStatOutput=sumStatFun(dat=admissionDataCurPeriod,var="adm6Factor",values=levels(admissionDataCurPeriod$adm6Factor)),varDescription="Organ support, n (%)",contCat="categorical")[1:2,])
+tbl4<-rbind(tbl4,reformatForTable(sumStatOutput=sumStatFun(dat=admissionDataCurPeriod,var="adm7Factor",values=levels(admissionDataCurPeriod$adm7Factor)),varDescription="Organ support, n (%)",contCat="categorical")[1:2,])
+tbl4<-rbind(tbl4,reformatForTable(sumStatOutput=sumStatFun(dat=admissionDataCurPeriod,var="adm99Factor",values=levels(admissionDataCurPeriod$adm99Factor)),varDescription="Organ support, n (%)",contCat="categorical")[1:2,])
+
 
 varDescIdx<-grep(tbl4$variable,pattern="\\[n=")
 varDescLabels<-tbl4[varDescIdx,1]
@@ -595,5 +656,6 @@ kable(tbl4,col.names=NULL,row.names=F,caption=paste(sep="","Patient outcomes (pe
   pack_rows(varDescLabels[1], 1, 4) %>%
   pack_rows(varDescLabels[2], 5, 5) %>%
   pack_rows(varDescLabels[3], 6, 6) %>%
-  pack_rows(varDescLabels[4], 7, 7)
+  pack_rows(varDescLabels[4], 7, 7) %>%
+  pack_rows(varDescLabels[5], 8, 15)
 ```
