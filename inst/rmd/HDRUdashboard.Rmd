@@ -1,0 +1,497 @@
+---
+title: "HDRU dashboard"
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: rows
+    vertical_layout: fill
+---
+
+```{r setup, include=FALSE,echo=FALSE}
+knitr::opts_chunk$set(fig.width=14, fig.height=10, dpi=200)
+```
+
+Figures {data-icon="fa-list"}
+=======================================================
+
+Row {data-width=350}
+-----------------------------------------------------------------------
+
+### Weekly admissions, available outcome data, organ support
+
+```{r}
+admissionsWeekly<-admissionData %>%
+  mutate(outcomeKnown=ifelse(is.na(outcomeKnown),0,1)) %>%
+  group_by(week=cut(ymd(admissionData$data_date),"week",start.on.monday=TRUE),.drop=F) %>%
+  summarise(n=sum(!is.na(pidAdm)),nOutcomeKnown=sum(outcomeKnown==1)) %>%
+  pivot_longer(cols=-week,names_to="countType",values_to="n")
+  # outcome data needs to be taken from the daily data
+admissionsWeekly$countType<-factor(admissionsWeekly$countType,levels=c("n","nOutcomeKnown"))
+
+admissionsWeekly %>%
+  filter(is.element(el=ymd(week),set=ymd(curWeek))) %>%
+  ggplot(mapping=aes(x=week,y=n,fill=countType)) +
+  geom_bar(position="dodge",stat="identity") +
+  scale_fill_manual(values=wes_palette("Zissou1",n=4,type="discrete")[c(1,4)],name="",labels=c("admitted","outcome recorded")) +
+  ylab("Frequency") +
+  theme_minimal() +
+  theme(legend.position="top",text=element_text(size=28),axis.text.x=element_text(angle = 30, hjust = 1)) +
+  xlab("Week") 
+```
+
+### Age and sex distribution (for period `r minDay` to `r maxDay`)
+
+```{r}
+admissionDataSex <- admissionDataCurPeriod %>%
+  select(pidAdm,data_date,agegrp,sexFactor) %>%
+  group_by(sexFactor,agegrp) %>%
+  dplyr::summarize(nadmn = sum(!is.na(pidAdm))) %>%
+  ungroup() %>%
+  tidyr::complete(sexFactor,agegrp,fill=list(nadmn=0))
+
+ggplot(admissionDataSex,aes(agegrp,nadmn,fill=sexFactor)) +
+  geom_bar(position="stack",stat="identity") +
+  xlab("Age at admission") +
+  ylab("Frequency") +
+  theme_minimal() +
+  theme(legend.position="top",text=element_text(size=28)) +
+  scale_fill_manual(values = wes_palette("Zissou1",n=4,type="discrete")[c(1,4)],name="")
+```
+
+
+Row {data-width=350}
+-----------------------------------------------------------------------
+### Organ support required (at admission)
+
+```{r}
+admissionsWeekly<-admissionData %>%
+  mutate(outcomeKnown=ifelse(is.na(outcomeKnown),0,1)) %>%
+  group_by(week=cut(ymd(admissionData$data_date),"week",start.on.monday=TRUE),.drop=F) %>%
+  summarise(n=sum(!is.na(pidAdm)),percOrganSupportOxygen=100*sum(adm1==1)/sum(!is.na(pidAdm)),percOrganSupportFluidBalance=100*sum(adm2==1)/sum(!is.na(pidAdm))) %>%
+  filter(is.element(el=ymd(week),set=ymd(curWeek)))
+
+admissionsWeeklyLong <-admissionsWeekly %>%
+  pivot_longer(cols=c(percOrganSupportOxygen,percOrganSupportFluidBalance),names_to="percType",values_to="percentage")
+  # outcome data needs to be taken from the daily data
+admissionsWeeklyLong$percType<-factor(admissionsWeeklyLong$percType,levels=c("percOrganSupportOxygen","percOrganSupportFluidBalance"))
+
+admissionsWeekly<-admissionsWeekly %>% mutate(
+  maxPerc=pmax(percOrganSupportOxygen,percOrganSupportFluidBalance),
+  nLabel=paste(sep="","n = ",n))
+
+ggplot() +
+  geom_bar(data=admissionsWeeklyLong,mapping=aes(x=week,y=percentage,fill=percType),position="dodge",stat="identity") +
+  scale_fill_manual(values=wes_palette("Zissou1",n=4,type="discrete")[c(1,4)],name="",labels=c("Oxygen support","Fluid balance")) +
+  ylab("Percentage") +
+  theme_minimal() +
+  theme(legend.position="top",text=element_text(size=28),axis.text.x=element_text(angle = 30, hjust = 1)) +
+  xlab("Week") +
+  geom_text(data=admissionsWeekly,mapping=aes(x=week,y=-4,label=nLabel),colour="grey50",size=8)
+```
+
+### Organ support duration (for those patients that received organ support)
+
+```{r}
+admissionDataCurPeriod %>%
+  select(pidAdm,osa1Dur,osa2Dur) %>%
+  pivot_longer(cols=-pidAdm,names_to="osType",values_to="duration") %>%
+  mutate(osType=factor(ifelse(osType=="osa1Dur","Oxygen administration.","Careful fluid balance."),levels=c("Oxygen administration.","Careful fluid balance."))) %>%
+  filter(duration > 0) %>% # this line guarantees that organ support duration is only summarised for individuals that received organ support
+  
+  ggplot(mapping=aes(x=osType,y=duration,fill=osType)) +
+  geom_boxplot() +
+  scale_fill_manual(values=wes_palette("Zissou1",n=4,type="discrete")[c(1,4)]) +
+  theme_minimal() +
+  theme(legend.position="none",text=element_text(size=28)) +
+  xlab("Organ support") +
+  ylab("Duration") +
+  ylim(c(0,max(c(admissionDataCurPeriod$osa1Dur,admissionDataCurPeriod$osa2Dur))))
+
+  # ggplot() +
+  # stat_summary(
+  #   mapping = aes(x = osType, y = duration, color=osType, lwd=1.75),
+  #   fun.min = min,
+  #   fun.max = max,
+  #   fun = median
+  # ) +
+  # scale_color_manual(values=wes_palette("Zissou1",n=4,type="discrete")[c(1,4)]) +
+  # theme(legend.position="none",text=element_text(size=28)) +
+  # xlab("Organ support") +
+  # ylab("Duration")
+```
+
+
+
+Tables - Patient Characteristics {data-icon="fa-list"}
+======================================================================
+
+
+```{r usefulRoutinesForTables}
+sumStatFun<-function(dat,var,groupVar=NULL,groups=NULL,values=NULL,breaks=NULL,rightTF=F,propsByRow=F){
+  # dat = data frame
+  # var = variable in dat for which the summary statistics are to be computed
+  # groupVar = variable to stratify the summary statistics by and to compute comparison p-values for
+  # values = levels or values (if variable is categorical or discrete)
+  # breaks = breaks to categorise a continuous variable
+  # rightTF = logical, indicating if the intervals should be closed on the right (and open on the left) or vice versa
+  # propsByRow = logical, only used when a groupVar is specified and the variable to be summarised is categorical, if TRUE, then proportions wil be calculated over rows rather than columns
+  
+  if(is.null(groupVar) | is.null(groups)){
+    dat$tmpGroup<-rep("allSamples",nrow(dat))
+    groups<-"allSamples"
+    groupVar<-"tmpGroup"
+  }
+  
+  dat<-as.data.frame(dat)
+  
+  # continuous variables
+  if(is.null(values) & is.null(breaks)){
+    ssFunTmp<-function(dat,var){
+      res<-data.frame(
+        stat=c("N (%)","mean (SD)","median (IQR)","range"),
+        stat1Val=c(sum(!is.na(dat[,var])),mean(dat[,var],na.rm=T),median(dat[,var],na.rm=T),min(dat[,var],na.rm=T)),
+        stat2Val=c(sum(!is.na(dat[,var]))/nrow(dat),sd(dat[,var],na.rm=T),quantile(dat[,var],probs=0.25,na.rm=T),max(dat[,var],na.rm=T)),
+        stat3Val=c(NA,NA,quantile(dat[,var],probs=0.75,na.rm=T),NA),
+        stringsAsFactors=F)
+      return(res)
+    }
+      
+    res<-ssFunTmp(dat=dat,var=var)
+    colnames(res)<-paste(sep="","overall_",colnames(res))
+    
+    if(length(groups)>1){
+      for(g in groups){
+        if(sum(!is.na(dat[dat[,groupVar]==g,var]))>0){
+          resTmp<-ssFunTmp(dat=dat[dat[,groupVar]==g,],var=var)
+          colnames(resTmp)<-paste(sep="",g,"_",colnames(resTmp))
+          res<-cbind(res,resTmp[,-1])
+        }else{
+          resTmp<-data.frame(stat1Val=rep(NA,4),stat2Val=NA,stat3Val=NA)
+          colnames(resTmp)<-paste(sep="",g,"_",colnames(resTmp))
+          res<-cbind(res,resTmp)
+        }
+      }
+    }
+    
+    res$p<-NA
+    if(length(groups)==2){
+      try(res$p[2]<-t.test(as.formula(paste(sep="~",var,groupVar)),data=dat)$p.value,silent=T)
+      try(res$p[3]<-wilcox.test(as.formula(paste(sep="~",var,groupVar)),data=dat)$p.value,silent=T)
+    }else if(length(groups)>2){
+      try(res$p[2]<-summary(aov(as.formula(paste(sep="~",var,groupVar)),data=dat))[[1]][1,"Pr(>F)"],silent=T)
+      try(res$p[3]<-kruskal.test(as.formula(paste(sep="~",var,groupVar)),data=dat)$p.value,silent=T)
+    }
+  }else{
+    # categorical or discrete variables
+    if(!is.null(values)){
+      tmp<-dat[,var]
+      levels(tmp)
+    # continuous variables to be categorised
+    }else if(!is.null(breaks)){
+      tmp<-cut(dat[,var],breaks=breaks,right=rightTF,ordered_result=T)
+    }
+    nonMissing<-sum(!is.na(dat[,var]))
+    for(g in groups){nonMissing<-c(nonMissing,sum(!is.na(dat[,var]) & dat[,groupVar]==g))}
+    resCounts<-rbind(nonMissing,cbind(table(tmp),table(tmp,dat[,groupVar])))
+    resProps<-resCounts
+    if(!propsByRow){
+      for(j in 1:ncol(resProps)){resProps[-1,j]<-resProps[-1,j]/resProps[1,j]}
+      resProps[1,1]<-resProps[1,1]/nrow(dat)
+      for(j in 1:length(groups)){resProps[1,j+1]<-resProps[1,j+1]/sum(dat[,groupVar]==groups[j])}
+    }else{
+      for(i in 2:nrow(resProps)){resProps[i,-1]<-resProps[i,-1]/resProps[i,1]}
+      resProps[1,1]<-resProps[1,1]/nrow(dat)
+      for(j in 1:length(groups)){resProps[1,j+1]<-resProps[1,j+1]/sum(dat[,groupVar]==groups[j])}
+    }
+    res<-data.frame(statName="N (%)",
+                    overall_count=resCounts[,1],
+                    overall_prop=resProps[,1],
+                    NA,
+                    stringsAsFactors=F)
+    if(length(groups)>1){
+      for(j in 2:ncol(resProps)){
+        res<-cbind(res,resCounts[,j],resProps[,j],NA)
+        colnames(res)[(ncol(res)-2):(ncol(res)-1)]<-paste(sep="_",colnames(resCounts)[j],c("count","prop"))
+      }
+    }
+
+    res$p<-NA
+    if(length(groups)>1){
+      res$p[2]<-fisher.test(resCounts[-1,-1])$p.value
+    }
+  }
+    
+  return(res)
+}
+
+reformatForTable<-function(sumStatOutput,varDescription,contCat,nsmall=2,groups=NULL){
+  if(is.null(groups)){
+    groups<-"overall"
+  }else{
+    groups<-c("overall",groups)
+  }
+  
+  if(contCat=="continuous"){
+    varTmp<-c(paste(sep="",varDescription," [n=",as.integer(sumStatOutput[sumStatOutput[,"overall_stat"]=="N (%)","overall_stat1Val"])," (",format(nsmall=1,round(digits=1,100*sumStatOutput[sumStatOutput[,"overall_stat"]=="N (%)","overall_stat2Val"])),"%)]"),
+              "  Mean (SD)",
+              "  Median (IQR)"
+    )
+    stat1Tmp<-list()
+    stat2Tmp<-list()
+    
+    for(g in groups){
+      stat1Tmp[[g]]<-c("",
+                  format(nsmall=nsmall,round(digits=2,sumStatOutput[sumStatOutput[,"overall_stat"]=="mean (SD)",paste(sep="_",g,"stat1Val")])),
+                  format(nsmall=nsmall,round(digits=2,sumStatOutput[sumStatOutput[,"overall_stat"]=="median (IQR)",paste(sep="_",g,"stat1Val")]))                                                                                                                       
+      )
+      stat2Tmp[[g]]<-c("",
+                  paste(sep="","(",format(nsmall=nsmall,round(digits=2,sumStatOutput[sumStatOutput[,"overall_stat"]=="mean (SD)",paste(sep="_",g,"stat2Val")])),")"),
+                  paste(sep="","(",paste(collapse=",",format(nsmall=nsmall,round(digits=2,unlist(sumStatOutput[sumStatOutput[,"overall_stat"]=="median (IQR)",c(paste(sep="_",g,"stat2Val"),paste(sep="_",g,"stat3Val"))])))),")")                                            
+      )
+    }
+    
+  }else if(contCat=="categorical"){
+    varTmp<-c(paste(sep="",varDescription," [n=",as.integer(sumStatOutput["nonMissing","overall_count"])," (",format(nsmall=1,round(digits=1,100*sumStatOutput["nonMissing","overall_prop"])),"%)]"),
+              paste(sep="","  ",rownames(sumStatOutput)[-1])
+    )
+    stat1Tmp<-list()
+    stat2Tmp<-list()
+    
+    for(g in groups){
+      lvls<-rownames(sumStatOutput)[-1]
+      stat1Tmp[[g]]<-c("",
+                       sumStatOutput[match(lvls,rownames(sumStatOutput)),paste(sep="_",g,"count")]
+      )
+      stat2Tmp[[g]]<-c("",
+                       paste(sep="","(",format(nsmall=1,round(digits=1,100*sumStatOutput[match(lvls,rownames(sumStatOutput)),paste(sep="_",g,"prop")])),"%)")
+      )
+    }
+  }
+  
+  res<-data.frame(variable=varTmp)
+  for(g in groups){
+    res<-res %>% add_column(
+      tmp1=stat1Tmp[[g]],
+      tmp2=stat2Tmp[[g]]
+    )
+    colnames(res)[colnames(res)=="tmp1"]<-paste(sep="_","stat1",g)
+    colnames(res)[colnames(res)=="tmp2"]<-paste(sep="_","stat2",g)
+  }
+  
+  res[res=="NA"]<-"--"
+  res[res=="(NA)"]<-"(-)"
+  res[res=="(NA,NA)"]<-"(-,-)"
+  
+  return(res)
+}
+```
+
+Row {data-width=350}
+-----------------------------------------------------------------------
+
+```{r table1}
+tbl1<-reformatForTable(sumStatOutput=sumStatFun(dat=admissionDataCurPeriod,var="age"),varDescription="Age at admission in years",contCat="continuous")
+tbl1<-rbind(tbl1,reformatForTable(sumStatOutput=sumStatFun(dat=admissionDataCurPeriod,var="sexFactor",values=levels(admissionDataCurPeriod$sexFactor)),varDescription="Sex, n (%)",contCat="categorical"))
+tbl1<-rbind(tbl1,reformatForTable(sumStatOutput=sumStatFun(dat=admissionDataCurPeriod[admissionDataCurPeriod$sexFactor=="Female",],var="pregFactor",values=levels(admissionDataCurPeriod$pregFactor)),varDescription="Pregnancy status, n (% of females)",contCat="categorical"))
+tbl1<-rbind(tbl1,reformatForTable(sumStatOutput=sumStatFun(dat=admissionDataCurPeriod,var="bmiFactor",values=levels(admissionDataCurPeriod$bmiFactor)),varDescription="Body mass index categories, n (%)",contCat="categorical"))
+
+varDescIdx<-grep(tbl1$variable,pattern="\\[n=")
+varDescLabels<-tbl1[varDescIdx,1]
+tbl1<-tbl1[-varDescIdx,]
+
+kable(tbl1,col.names=NULL,row.names=F,caption=paste(sep="","Patient characteristics: demographics (period ",minDay," to ",maxDay,"; total admissions n=",nrow(admissionDataCurPeriod),")")) %>%
+  kable_styling("striped", full_width = F) %>%
+  #add_header_above(c("Demographics" = 1, paste(sep="","Patients to HDRU from ",minDay," to ",maxDay,"[n = ",nrow(admissionData),"]") = 2)) %>%
+  pack_rows(varDescLabels[1], 1, 2) %>%
+  pack_rows(varDescLabels[2], 3, 4) %>%
+  pack_rows(varDescLabels[3], 5, 7) %>%
+  pack_rows(varDescLabels[4], 8, 12)
+```
+
+```{r table2}
+tbl2<-reformatForTable(sumStatOutput=sumStatFun(dat=admissionDataCurPeriod,var="depFactor",values=levels(admissionDataCurPeriod$depFactor)),varDescription="Dependency prior to admission, n (%)",contCat="categorical")
+tbl2<-rbind(tbl2,reformatForTable(sumStatOutput=sumStatFun(dat=admissionDataCurPeriod,var="hivFactor",values=levels(admissionDataCurPeriod$hivFactor)),varDescription="HIV, n (%)",contCat="categorical"))
+tbl2<-rbind(tbl2,reformatForTable(sumStatOutput=sumStatFun(dat=admissionDataCurPeriod,var="tbFactor",values=levels(admissionDataCurPeriod$tbFactor)),varDescription="TB, n (%)",contCat="categorical"))
+tbl2<-rbind(tbl2,reformatForTable(sumStatOutput=sumStatFun(dat=admissionDataCurPeriod,var="hypFactor",values=levels(admissionDataCurPeriod$hypFactor)),varDescription="Hyptertension, n (%)",contCat="categorical"))
+tbl2<-rbind(tbl2,reformatForTable(sumStatOutput=sumStatFun(dat=admissionDataCurPeriod,var="ccfFactor",values=levels(admissionDataCurPeriod$ccfFactor)),varDescription="Congestive cardiac failure, n (%)",contCat="categorical"))
+tbl2<-rbind(tbl2,reformatForTable(sumStatOutput=sumStatFun(dat=admissionDataCurPeriod,var="strokeFactor",values=levels(admissionDataCurPeriod$strokeFactor)),varDescription="Stroke, n (%)",contCat="categorical"))
+tbl2<-rbind(tbl2,reformatForTable(sumStatOutput=sumStatFun(dat=admissionDataCurPeriod,var="diabetesFactor",values=levels(admissionDataCurPeriod$diabetesFactor)),varDescription="Diabetes, n (%)",contCat="categorical"))
+
+varDescIdx<-grep(tbl2$variable,pattern="\\[n=")
+varDescLabels<-tbl2[varDescIdx,1]
+tbl2<-tbl2[-varDescIdx,]
+
+kable(tbl2,col.names=NULL,row.names=F,caption=paste(sep="","Patient characteristics: medical history (period ",minDay," to ",maxDay,"; total admissions n=",nrow(admissionDataCurPeriod),")")) %>%
+  kable_styling("striped", full_width = F) %>%
+  #add_header_above(c("Demographics" = 1, paste(sep="","Patients to HDRU from ",minDay," to ",maxDay,"[n = ",nrow(admissionData),"]") = 2)) %>%
+  pack_rows(varDescLabels[1], 1, 4) %>%
+  pack_rows(varDescLabels[2], 5, 8) %>%
+  pack_rows(varDescLabels[3], 9, 10) %>%
+  pack_rows(varDescLabels[4], 11, 12) %>%
+  pack_rows(varDescLabels[5], 13, 14) %>%
+  pack_rows(varDescLabels[6], 15, 16) %>%
+  pack_rows(varDescLabels[7], 17, 20)
+```
+
+```{r table3}
+tbl3<-reformatForTable(nsmall=0,sumStatOutput=sumStatFun(dat=admissionDataCurPeriod,var="news2"),varDescription="NEWS2 score",contCat="continuous")[c(1,3),]
+tbl3<-rbind(tbl3,reformatForTable(nsmall=0,sumStatOutput=sumStatFun(dat=admissionDataCurPeriod,var="uva"),varDescription="UVA score",contCat="continuous")[c(1,3),])
+tbl3<-rbind(tbl3,reformatForTable(nsmall=0,sumStatOutput=sumStatFun(dat=admissionDataCurPeriod,var="pfRatio"),varDescription="PF ratio",contCat="continuous"))
+tbl3<-rbind(tbl3,reformatForTable(nsmall=0,sumStatOutput=sumStatFun(dat=admissionDataCurPeriod,var="pfRatio",breaks=c(0,13.3,26.7,Inf)),varDescription="PF ratio",contCat="categorical"))
+
+tbl3$stat2<-gsub(pattern="\\( ",replacement="\\(",tbl3$stat2)
+
+varDescIdx<-grep(tbl3$variable,pattern="\\[n=")
+varDescLabels<-tbl3[varDescIdx,1]
+tbl3<-tbl3[-varDescIdx,]
+
+kable(tbl3,col.names=NULL,row.names=F,caption=paste(sep="","Patient characteristics: acute severity (period ",minDay," to ",maxDay,"; total admissions n=",nrow(admissionDataCurPeriod),")")) %>%
+  kable_styling("striped", full_width = F) %>%
+  #add_header_above(c("Demographics" = 1, paste(sep="","Patients to HDRU from ",minDay," to ",maxDay,"[n = ",nrow(admissionData),"]") = 2)) %>%
+  pack_rows(varDescLabels[1], 1, 1) %>%
+  pack_rows(varDescLabels[2], 2, 2) %>%
+  pack_rows(varDescLabels[3], 3, 7)
+```
+
+
+Tables - Outcomes {data-icon="fa-list"}
+======================================================================
+
+Row {data-width=350}
+-----------------------------------------------------------------------
+
+```{r table4}
+admissionDataCurPeriod$outcome<-factor(case_when(
+  admissionDataCurPeriod$outcome=="Dead"~"Died",
+  admissionDataCurPeriod$outcome=="Alive, discharged"~"Discharged",
+  admissionDataCurPeriod$outcome=="Absconded"~"Absconded",
+  admissionDataCurPeriod$outcome=="Unknown"~"Unknown"),
+  levels=c("Discharged","Died","Absconded","Unknown"))
+
+admissionDataCurPeriod<-admissionDataCurPeriod %>%
+  add_column(
+    adm1Factor=factor(ifelse(admissionDataCurPeriod$adm1==1,"Oxygen","No oxygen"),levels=c("Oxygen","No oxygen")),
+    adm2Factor=factor(ifelse(admissionDataCurPeriod$adm2==1,"Fluid balance","No fluid balance"),levels=c("Fluid balance","No fluid balance")),
+    adm3Factor=factor(ifelse(admissionDataCurPeriod$adm3==1,"Neurological observation","No neurological observation"),levels=c("Neurological observation","No neurological observation")),
+    adm4Factor=factor(ifelse(admissionDataCurPeriod$adm4==1,"Intravenous drug (not vasoactive)","No intravenous drug (not vasoactive)"),levels=c("Intravenous drug (not vasoactive)","No intravenous drug (not vasoactive)")),
+    adm5Factor=factor(ifelse(admissionDataCurPeriod$adm5==1,"Intravenous drug (vasoactive)","No intravenous drug (vasoactive)"),levels=c("Intravenous drug (vasoactive)","No intravenous drug (vasoactive)")),
+    adm6Factor=factor(ifelse(admissionDataCurPeriod$adm6==1,"Continuous monitoring","No continuous monitoring"),levels=c("Continuous monitoring","No continuous monitoring")),
+    adm7Factor=factor(ifelse(admissionDataCurPeriod$adm7==1,"Intubation & ventilation","No intubation & ventilation"),levels=c("Intubation & ventilation","No intubation & ventilation")),
+    adm99Factor=factor(ifelse(admissionDataCurPeriod$adm99==1,"Other","No other"),levels=c("Other","No other")),
+    osa1Factor=factor(ifelse(admissionDataCurPeriod$osa1==1,"Oxygen","No oxygen"),levels=c("Oxygen","No oxygen")),
+    osa2Factor=factor(ifelse(admissionDataCurPeriod$osa2==1,"Fluid balance","No fluid balance"),levels=c("Fluid balance","No fluid balance")),
+    osa3Factor=factor(ifelse(admissionDataCurPeriod$osa3==1,"Neurological observation","No neurological observation"),levels=c("Neurological observation","No neurological observation")),
+    osa4Factor=factor(ifelse(admissionDataCurPeriod$osa4==1,"Intravenous drug (not vasoactive)","No intravenous drug (not vasoactive)"),levels=c("Intravenous drug (not vasoactive)","No intravenous drug (not vasoactive)")),
+    osa5Factor=factor(ifelse(admissionDataCurPeriod$osa5==1,"Intravenous drug (vasoactive)","No intravenous drug (vasoactive)"),levels=c("Intravenous drug (vasoactive)","No intravenous drug (vasoactive)")),
+    osa6Factor=factor(ifelse(admissionDataCurPeriod$osa6==1,"Continuous monitoring","No continuous monitoring"),levels=c("Continuous monitoring","No continuous monitoring")),
+    osa7Factor=factor(ifelse(admissionDataCurPeriod$osa7==1,"Intubation & ventilation","No intubation & ventilation"),levels=c("Intubation & ventilation","No intubation & ventilation")),
+    osa8Factor=factor(ifelse(admissionDataCurPeriod$osa8==1,"Other","No other"),levels=c("Other","No other"))
+  )
+
+tbl4<-reformatForTable(nsmall=0,sumStatOutput=sumStatFun(dat=admissionDataCurPeriod,var="outcome",values=levels(admissionDataCurPeriod$outcome)),varDescription="Outcome at the end of critical care, n (%)",contCat="categorical")
+tbl4<-rbind(tbl4,reformatForTable(nsmall=2,sumStatOutput=sumStatFun(dat=admissionDataCurPeriod,var="LOS"),varDescription="Length of stay",contCat="continuous")[c(1:3),])
+tbl4<-rbind(tbl4,reformatForTable(nsmall=2,sumStatOutput=sumStatFun(dat=admissionDataCurPeriod[!is.na(admissionDataCurPeriod$outcome) & admissionDataCurPeriod$outcome=="Discharged",],var="LOS"),varDescription=paste(sep="","Length of stay (critical care survivors; N=",sum(!is.na(admissionDataCurPeriod$outcome) & admissionDataCurPeriod$outcome=="Discharged"),")"),contCat="continuous")[c(1:3),])
+tbl4<-rbind(tbl4,reformatForTable(nsmall=2,sumStatOutput=sumStatFun(dat=admissionDataCurPeriod[!is.na(admissionDataCurPeriod$outcome) & admissionDataCurPeriod$outcome=="Died",],var="LOS"),varDescription=paste(sep="","Length of stay (critical care non survivors; N=",sum(!is.na(admissionDataCurPeriod$outcome) & admissionDataCurPeriod$outcome=="Died"),")"),contCat="continuous")[c(1:3),])
+tbl4<-rbind(tbl4,reformatForTable(sumStatOutput=sumStatFun(dat=admissionDataCurPeriod,var="osa1Factor",values=levels(admissionDataCurPeriod$osa1Factor)),varDescription="Organ support (at any time during critical care stay), n (%)",contCat="categorical")[1:2,])
+tbl4<-rbind(tbl4,reformatForTable(sumStatOutput=sumStatFun(dat=admissionDataCurPeriod,var="osa2Factor",values=levels(admissionDataCurPeriod$osa2Factor)),varDescription="Organ support (at any time during critical care stay), n (%)",contCat="categorical")[1:2,])
+tbl4<-rbind(tbl4,reformatForTable(sumStatOutput=sumStatFun(dat=admissionDataCurPeriod,var="osa3Factor",values=levels(admissionDataCurPeriod$osa3Factor)),varDescription="Organ support (at any time during critical care stay), n (%)",contCat="categorical")[1:2,])
+tbl4<-rbind(tbl4,reformatForTable(sumStatOutput=sumStatFun(dat=admissionDataCurPeriod,var="osa4Factor",values=levels(admissionDataCurPeriod$osa4Factor)),varDescription="Organ support (at any time during critical care stay), n (%)",contCat="categorical")[1:2,])
+tbl4<-rbind(tbl4,reformatForTable(sumStatOutput=sumStatFun(dat=admissionDataCurPeriod,var="osa5Factor",values=levels(admissionDataCurPeriod$osa5Factor)),varDescription="Organ support (at any time during critical care stay), n (%)",contCat="categorical")[1:2,])
+tbl4<-rbind(tbl4,reformatForTable(sumStatOutput=sumStatFun(dat=admissionDataCurPeriod,var="osa6Factor",values=levels(admissionDataCurPeriod$osa6Factor)),varDescription="Organ support (at any time during critical care stay), n (%)",contCat="categorical")[1:2,])
+tbl4<-rbind(tbl4,reformatForTable(sumStatOutput=sumStatFun(dat=admissionDataCurPeriod,var="osa7Factor",values=levels(admissionDataCurPeriod$osa7Factor)),varDescription="Organ support (at any time during critical care stay), n (%)",contCat="categorical")[1:2,])
+tbl4<-rbind(tbl4,reformatForTable(sumStatOutput=sumStatFun(dat=admissionDataCurPeriod,var="osa8Factor",values=levels(admissionDataCurPeriod$osa8Factor)),varDescription="Organ support (at any time during critical care stay), n (%)",contCat="categorical")[1:2,])
+tbl4<-rbind(tbl4,reformatForTable(nsmall=2,sumStatOutput=sumStatFun(dat=admissionDataCurPeriod[admissionDataCurPeriod$osa1Dur>0,],var="osa1Dur"),varDescription="Duration of oxygen support (days)",contCat="continuous")[c(1:3),])
+tbl4<-rbind(tbl4,reformatForTable(nsmall=2,sumStatOutput=sumStatFun(dat=admissionDataCurPeriod[admissionDataCurPeriod$osa2Dur>0,],var="osa2Dur"),varDescription="Duration of fluid balance (days)",contCat="continuous")[c(1:3),])
+tbl4<-rbind(tbl4,reformatForTable(nsmall=2,sumStatOutput=sumStatFun(dat=admissionDataCurPeriod[admissionDataCurPeriod$osa3Dur>0,],var="osa3Dur"),varDescription="Duration of neurological observation (days)",contCat="continuous")[c(1:3),])
+tbl4<-rbind(tbl4,reformatForTable(nsmall=2,sumStatOutput=sumStatFun(dat=admissionDataCurPeriod[admissionDataCurPeriod$osa4Dur>0,],var="osa4Dur"),varDescription="Duration of intravenous drug administration (not vasoactive) (days)",contCat="continuous")[c(1:3),])
+tbl4<-rbind(tbl4,reformatForTable(nsmall=2,sumStatOutput=sumStatFun(dat=admissionDataCurPeriod[admissionDataCurPeriod$osa5Dur>0,],var="osa5Dur"),varDescription="Duration of intravenous drug administration (vasoactive) (days)",contCat="continuous")[c(1:3),])
+tbl4<-rbind(tbl4,reformatForTable(nsmall=2,sumStatOutput=sumStatFun(dat=admissionDataCurPeriod[admissionDataCurPeriod$osa6Dur>0,],var="osa6Dur"),varDescription="Duration of continuous monitoring (days)",contCat="continuous")[c(1:3),])
+tbl4<-rbind(tbl4,reformatForTable(nsmall=2,sumStatOutput=sumStatFun(dat=admissionDataCurPeriod[admissionDataCurPeriod$osa7Dur>0,],var="osa7Dur"),varDescription="Duration of intubation & ventilation (days)",contCat="continuous")[c(1:3),])
+tbl4<-rbind(tbl4,reformatForTable(nsmall=2,sumStatOutput=sumStatFun(dat=admissionDataCurPeriod[admissionDataCurPeriod$osa8Dur>0,],var="osa8Dur"),varDescription="Duration of other organ support (days)",contCat="continuous")[c(1:3),])
+
+varDescIdx<-grep(tbl4$variable,pattern="\\[n=")
+varDescLabels<-tbl4[varDescIdx,1]
+tbl4<-tbl4[-varDescIdx,]
+
+kable(tbl4,col.names=NULL,row.names=F,caption=paste(sep="","Patient outcomes (period ",minDay," to ",maxDay,"; total admissions n=",nrow(admissionDataCurPeriod),")")) %>%
+  kable_styling("striped", full_width = F) %>%
+  #add_header_above(c("Demographics" = 1, paste(sep="","Patients to HDRU from ",minDay," to ",maxDay,"[n = ",nrow(admissionData),"]") = 2)) %>%
+  pack_rows(varDescLabels[1], 1, 4) %>%
+  pack_rows(varDescLabels[2], 5, 6) %>%
+  pack_rows(varDescLabels[3], 7, 8) %>%
+  pack_rows(varDescLabels[4], 9, 10) %>%
+  pack_rows(varDescLabels[5], 11, 18) %>%
+  pack_rows(varDescLabels[13], 19, 20) %>%
+  pack_rows(varDescLabels[14], 21, 22) %>%
+  pack_rows(varDescLabels[15], 23, 24) %>%
+  pack_rows(varDescLabels[16], 25, 26) %>%
+  pack_rows(varDescLabels[17], 27, 28) %>%
+  pack_rows(varDescLabels[18], 29, 30) %>%
+  pack_rows(varDescLabels[19], 31, 32) %>%
+  pack_rows(varDescLabels[20], 33, 34)
+```
+
+```{r outcomeByPatientCharacteristics}
+outcomeLvls<-c("Discharged (hospital)","Discharged (critical care), died in hospital","Died in critical care","Discharged (critical care), unknown hospital outcome","Outcome unknown")
+
+tbl5<-reformatForTable(sumStatOutput=sumStatFun(dat=admissionDataCurPeriod,var="agegrp",values=levels(admissionDataCurPeriod$agegrp),groupVar="outcomeAliveOrDead",groups=outcomeLvls,propsByRow = T),varDescription = "Age",contCat = "categorical",groups=outcomeLvls)[,-c(2:3)]
+tbl5<-rbind(tbl5,reformatForTable(sumStatOutput=sumStatFun(dat=admissionDataCurPeriod,var="sexFactor",values=levels(admissionDataCurPeriod$sexFactor),groupVar="outcomeAliveOrDead",groups=outcomeLvls,propsByRow = T),varDescription = "Sex",contCat = "categorical",groups=outcomeLvls)[,-c(2:3)])
+tbl5<-rbind(tbl5,reformatForTable(sumStatOutput=sumStatFun(dat=admissionDataCurPeriod,var="bmiFactor",values=levels(admissionDataCurPeriod$bmiFactor),groupVar="outcomeAliveOrDead",groups=outcomeLvls,propsByRow = T),varDescription = "BMI",contCat = "categorical",groups=outcomeLvls)[,-c(2:3)])
+tbl5<-rbind(tbl5,reformatForTable(sumStatOutput=sumStatFun(dat=admissionDataCurPeriod,var="hivFactor",values=levels(admissionDataCurPeriod$hivFactor),groupVar="outcomeAliveOrDead",groups=outcomeLvls,propsByRow = T),varDescription = "HIV status",contCat = "categorical",groups=outcomeLvls)[,-c(2:3)])
+tbl5<-rbind(tbl5,reformatForTable(sumStatOutput=sumStatFun(dat=admissionDataCurPeriod,var="tbFactor",values=levels(admissionDataCurPeriod$hivFactor),groupVar="outcomeAliveOrDead",groups=outcomeLvls,propsByRow = T),varDescription = "TB status",contCat = "categorical",groups=outcomeLvls)[,-c(2:3)])
+tbl5<-rbind(tbl5,reformatForTable(sumStatOutput=sumStatFun(dat=admissionDataCurPeriod,var="news2",groupVar="outcomeAliveOrDead",groups=outcomeLvls),varDescription = "NEWS2 score",contCat = "continuous",groups=outcomeLvls)[,-c(2:3)])
+tbl5<-rbind(tbl5,reformatForTable(sumStatOutput=sumStatFun(dat=admissionDataCurPeriod,var="uva",groupVar="outcomeAliveOrDead",groups=outcomeLvls),varDescription = "UVA score",contCat = "continuous",groups=outcomeLvls)[,-c(2:3)])
+tbl5<-rbind(tbl5,reformatForTable(sumStatOutput=sumStatFun(dat=admissionDataCurPeriod,var="LOS",groupVar="outcomeAliveOrDead",groups=outcomeLvls),varDescription = "Length of stay (days)",contCat = "continuous",groups=outcomeLvls)[,-c(2:3)])
+tbl5<-rbind(tbl5,reformatForTable(sumStatOutput=sumStatFun(dat=admissionDataCurPeriod,var="osa1Factor",values=levels(admissionDataCurPeriod$osa1Factor),groupVar="outcomeAliveOrDead",groups=outcomeLvls,propsByRow = T),varDescription = "Organ support (at any time during critical care)",contCat = "categorical",groups=outcomeLvls)[1:2,-c(2:3)])
+tbl5<-rbind(tbl5,reformatForTable(sumStatOutput=sumStatFun(dat=admissionDataCurPeriod,var="osa2Factor",values=levels(admissionDataCurPeriod$osa1Factor),groupVar="outcomeAliveOrDead",groups=outcomeLvls,propsByRow = T),varDescription = "Organ support (at any time during critical care)",contCat = "categorical",groups=outcomeLvls)[1:2,-c(2:3)])
+tbl5<-rbind(tbl5,reformatForTable(sumStatOutput=sumStatFun(dat=admissionDataCurPeriod,var="osa3Factor",values=levels(admissionDataCurPeriod$osa1Factor),groupVar="outcomeAliveOrDead",groups=outcomeLvls,propsByRow = T),varDescription = "Organ support (at any time during critical care)",contCat = "categorical",groups=outcomeLvls)[1:2,-c(2:3)])
+tbl5<-rbind(tbl5,reformatForTable(sumStatOutput=sumStatFun(dat=admissionDataCurPeriod,var="osa4Factor",values=levels(admissionDataCurPeriod$osa1Factor),groupVar="outcomeAliveOrDead",groups=outcomeLvls,propsByRow = T),varDescription = "Organ support (at any time during critical care)",contCat = "categorical",groups=outcomeLvls)[1:2,-c(2:3)])
+tbl5<-rbind(tbl5,reformatForTable(sumStatOutput=sumStatFun(dat=admissionDataCurPeriod,var="osa5Factor",values=levels(admissionDataCurPeriod$osa1Factor),groupVar="outcomeAliveOrDead",groups=outcomeLvls,propsByRow = T),varDescription = "Organ support (at any time during critical care)",contCat = "categorical",groups=outcomeLvls)[1:2,-c(2:3)])
+tbl5<-rbind(tbl5,reformatForTable(sumStatOutput=sumStatFun(dat=admissionDataCurPeriod,var="osa6Factor",values=levels(admissionDataCurPeriod$osa1Factor),groupVar="outcomeAliveOrDead",groups=outcomeLvls,propsByRow = T),varDescription = "Organ support (at any time during critical care)",contCat = "categorical",groups=outcomeLvls)[1:2,-c(2:3)])
+tbl5<-rbind(tbl5,reformatForTable(sumStatOutput=sumStatFun(dat=admissionDataCurPeriod,var="osa7Factor",values=levels(admissionDataCurPeriod$osa1Factor),groupVar="outcomeAliveOrDead",groups=outcomeLvls,propsByRow = T),varDescription = "Organ support (at any time during critical care)",contCat = "categorical",groups=outcomeLvls)[1:2,-c(2:3)])
+tbl5<-rbind(tbl5,reformatForTable(sumStatOutput=sumStatFun(dat=admissionDataCurPeriod,var="osa8Factor",values=levels(admissionDataCurPeriod$osa1Factor),groupVar="outcomeAliveOrDead",groups=outcomeLvls,propsByRow = T),varDescription = "Organ support (at any time during critical care)",contCat = "categorical",groups=outcomeLvls)[1:2,-c(2:3)])
+tbl5<-rbind(tbl5,reformatForTable(sumStatOutput=sumStatFun(dat=admissionDataCurPeriod[admissionDataCurPeriod$osa1Dur>0,],var="osa1Dur",groupVar="outcomeAliveOrDead",groups=outcomeLvls),varDescription = "Duration of oxygen support (days)",contCat = "continuous",groups=outcomeLvls)[,-c(2:3)])
+tbl5<-rbind(tbl5,reformatForTable(sumStatOutput=sumStatFun(dat=admissionDataCurPeriod[admissionDataCurPeriod$osa2Dur>0,],var="osa2Dur",groupVar="outcomeAliveOrDead",groups=outcomeLvls),varDescription = "Duration of fluid balance (days)",contCat = "continuous",groups=outcomeLvls)[,-c(2:3)])
+tbl5<-rbind(tbl5,reformatForTable(sumStatOutput=sumStatFun(dat=admissionDataCurPeriod[admissionDataCurPeriod$osa3Dur>0,],var="osa3Dur",groupVar="outcomeAliveOrDead",groups=outcomeLvls),varDescription = "Duration of neurological observation (days)",contCat = "continuous",groups=outcomeLvls)[,-c(2:3)])
+tbl5<-rbind(tbl5,reformatForTable(sumStatOutput=sumStatFun(dat=admissionDataCurPeriod[admissionDataCurPeriod$osa4Dur>0,],var="osa4Dur",groupVar="outcomeAliveOrDead",groups=outcomeLvls),varDescription = "Duration of intravenous drug administration (not vasoactive) (days)",contCat = "continuous",groups=outcomeLvls)[,-c(2:3)])
+tbl5<-rbind(tbl5,reformatForTable(sumStatOutput=sumStatFun(dat=admissionDataCurPeriod[admissionDataCurPeriod$osa5Dur>0,],var="osa5Dur",groupVar="outcomeAliveOrDead",groups=outcomeLvls),varDescription = "Duration of intravenous drug administration (vasoactive) (days)",contCat = "continuous",groups=outcomeLvls)[,-c(2:3)])
+tbl5<-rbind(tbl5,reformatForTable(sumStatOutput=sumStatFun(dat=admissionDataCurPeriod[admissionDataCurPeriod$osa6Dur>0,],var="osa6Dur",groupVar="outcomeAliveOrDead",groups=outcomeLvls),varDescription = "Duration of continuous monitoring (days)",contCat = "continuous",groups=outcomeLvls)[,-c(2:3)])
+tbl5<-rbind(tbl5,reformatForTable(sumStatOutput=sumStatFun(dat=admissionDataCurPeriod[admissionDataCurPeriod$osa7Dur>0,],var="osa7Dur",groupVar="outcomeAliveOrDead",groups=outcomeLvls),varDescription = "Duration of intubation & ventilation (days)",contCat = "continuous",groups=outcomeLvls)[,-c(2:3)])
+tbl5<-rbind(tbl5,reformatForTable(sumStatOutput=sumStatFun(dat=admissionDataCurPeriod[admissionDataCurPeriod$osa8Dur>0,],var="osa8Dur",groupVar="outcomeAliveOrDead",groups=outcomeLvls),varDescription = "Duration of other organ support (days)",contCat = "continuous",groups=outcomeLvls)[,-c(2:3)])
+
+varDescIdx<-grep(tbl5$variable,pattern="\\[n=")
+varDescLabels<-tbl5[varDescIdx,1]
+tbl5<-tbl5[-varDescIdx,]
+
+kable(tbl5,col.names=rep("",ncol(tbl5)),row.names=F,caption=paste(sep="","Patient characteristics by outcome (period ",minDay," to ",maxDay,"; total admissions n=",nrow(admissionDataCurPeriod),")")) %>%
+  kable_styling("striped", full_width = F) %>%
+  #add_header_above(c("Demographics" = 1, paste(sep="","Patients to HDRU from ",minDay," to ",maxDay,"[n = ",nrow(admissionData),"]") = 2)) %>%
+  pack_rows(varDescLabels[1], 1, 5) %>%
+  pack_rows(varDescLabels[2], 6, 7) %>%
+  pack_rows(varDescLabels[3], 8, 12) %>%
+  pack_rows(varDescLabels[4], 13, 16) %>%
+  pack_rows(varDescLabels[5], 17, 18) %>%
+  pack_rows(varDescLabels[6], 19, 20) %>%
+  pack_rows(varDescLabels[7], 21, 22) %>%
+  pack_rows(varDescLabels[8], 23, 24) %>%
+  pack_rows(varDescLabels[9], 25, 32) %>%
+  pack_rows(varDescLabels[17], 33, 34) %>%
+  pack_rows(varDescLabels[18], 35, 36) %>%
+  pack_rows(varDescLabels[19], 37, 38) %>%
+  pack_rows(varDescLabels[20], 39, 40) %>%
+  pack_rows(varDescLabels[21], 41, 42) %>%
+  pack_rows(varDescLabels[22], 43, 44) %>%
+  pack_rows(varDescLabels[23], 45, 46) %>%
+  pack_rows(varDescLabels[24], 47, 48) %>%
+  column_spec(1, width = "15em") %>%
+  column_spec(2, width = "3em") %>%
+  column_spec(3, width = "8em") %>%
+  column_spec(4, width = "3em") %>%
+  column_spec(5, width = "8em") %>%
+  column_spec(6, width = "3em") %>%
+  column_spec(7, width = "8em") %>%
+  column_spec(8, width = "3em") %>%
+  column_spec(9, width = "8em") %>%
+  column_spec(10, width = "3em") %>%
+  column_spec(11, width = "8em") %>%
+  add_header_above(c(" ", "Discharged (hospital)" = 2, "Discharged (critical care), died in hospital" = 2, "Died in critical care" = 2, "Discharged (critical care), outcome unknown" = 2, "Outcome unknown" = 2), align="l")
+```

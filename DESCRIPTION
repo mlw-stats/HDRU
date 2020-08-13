@@ -1,0 +1,21 @@
+Package: HDRUdashboard
+Type: Package
+Title: Combine Parameter Estimates via Parametric Bootstrap
+Version: 0.0.0.9000
+Authors@R: c(person("Marc", "Henrion", email = "mhenrion@mlw.mw", role = c("aut", "cre"), comment = c(ORCID = "0000-0003-1242-839X")),person("James", "Chirombo", email = "jchirombo@mlw.mw", role = c("aut")))
+Description: R package implementing the HDRU dashboard. For internal use at MLW at the moment only.
+License: GPL-3
+Encoding: UTF-8
+LazyData: true
+Depends:
+  rmarkdown (>= 2.2),
+  flexdashboard (>= 0.5.1.1),
+  ggplot2 (>= 3.3.1),
+  dplyr (>= 1.0.0),
+  lubridate (>= 1.7.9),
+  plotly (>= 4.9.2.1),
+  wesanderson (>= 0.3.6),
+  knitr (>= 1.28),
+  kableExtra (>= 1.1.0),
+  tibble (>= 3.0.1)
+RoxygenNote: 7.1.0
