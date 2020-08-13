@@ -37,3 +37,15 @@ vignettes/*.pdf
 
 # R Environment Variables
 .Renviron
+
+# Ignore Mac system files
+.DS_store
+
+# Specific files
+.gitignore~
+HDRU_dashboard.Rproj
+HDRUdashboard.html
+HDRUdashboard.md
+inst/.DS_Store
+test.html
+gitToken

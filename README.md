@@ -14,6 +14,9 @@ This is an R package for internal use at MLW to run the High Dependency Research
 # install.packages("devtools")
 devtools::install_github("JamesChirombo/HDRU_dashboard")
 ```
+### Note
+
+This is currently a private repository, so for the `install_github()` command to work, you will need to generate an access token first (you can do this by going [here](https://github.com/settings/tokens)).
 
 ## Example
 
