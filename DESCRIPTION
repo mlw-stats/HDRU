@@ -18,5 +18,5 @@ Depends:
   knitr (>= 1.28),
   kableExtra (>= 1.1.0),
   tibble (>= 3.0.1),
-  filesstrings (>=3.1.5)
+  filesstrings (>= 3.1.5)
 RoxygenNote: 7.1.0
