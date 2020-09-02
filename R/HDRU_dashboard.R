@@ -2,7 +2,7 @@
 #' Generate a PDF report from the data.
 #' 
 #' @description
-#' Generates a PDF report containing summaries of the data, including comparison of lengths of hospital stay by sex and age group, outcome by sex,
+#' Generates an HTML report containing summaries of the data, including comparison of lengths of hospital stay by sex and age group, outcome by sex,
 #' comorbidity, symptom and treatment distributions and distribution of vital signs on presentation at hospital. 
 #' @param admissionData Data table with the current admission data from the MLW data portal
 #' @param dailyData Data frame with the current daily data from the MLW data portal

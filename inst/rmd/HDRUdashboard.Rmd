@@ -280,6 +280,7 @@ reformatForTable<-function(sumStatOutput,varDescription,contCat,nsmall=2,groups=
   res[res=="NA"]<-"--"
   res[res=="(NA)"]<-"(-)"
   res[res=="(NA,NA)"]<-"(-,-)"
+  res[res=="(NaN%)"]<-"(-)"
   
   return(res)
 }
