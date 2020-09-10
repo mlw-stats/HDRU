@@ -31,7 +31,7 @@
 #' dailyData<-read.csv("hdru_daily_raw.csv")
 #' curWeek<-dmy("06/07/2020","13/07/2020","20/07/2020","27/07/2020")
 #' 
-# HDRUdashboard(admissionData=admissionData,dailyData=dailyData,curWeek=curWeek,file.name="HDRUdashboard.html")
+#' HDRUdashboard(admissionData=admissionData,dailyData=dailyData,curWeek=curWeek,file.name="HDRUdashboard.html")
 #' 
 #' @export HDRUdashboard
 
