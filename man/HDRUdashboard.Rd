@@ -22,3 +22,20 @@ Html dashboard visualising the provided HDRU data
 Generates an HTML report containing summaries of the data, including comparison of lengths of hospital stay by sex and age group, outcome by sex,
 comorbidity, symptom and treatment distributions and distribution of vital signs on presentation at hospital.
 }
+\examples{
+# You will need to
+#  * Load the admission data from the data portal (argument admissionData).
+#  * Load the daily data from the data portal (argument dailyData).
+#  * Set the weeks for which you want summaries (argument curWeek).
+#  * Specify a file name (with .html extension) that will contain the dashboard report.
+# The example below assumes you've got the 2 input data files sitting in your working directory.
+# Once you have run the HDRUdashboard() function, open the specified output html file.
+
+library(HDRU)
+
+admissionData<-read.csv("hdru_admission_raw.csv")
+dailyData<-read.csv("hdru_daily_raw.csv")
+curWeek<-dmy("06/07/2020","13/07/2020","20/07/2020","27/07/2020")
+
+
+}
