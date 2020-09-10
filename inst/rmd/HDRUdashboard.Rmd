@@ -20,9 +20,9 @@ Row {data-width=350}
 
 ```{r}
 admissionsWeekly<-admissionData %>%
-  mutate(outcomeKnown=ifelse(is.na(outcomeKnown),0,1)) %>%
-  group_by(week=cut(ymd(admissionData$data_date),"week",start.on.monday=TRUE),.drop=F) %>%
-  summarise(n=sum(!is.na(pidAdm)),nOutcomeKnown=sum(outcomeKnown==1)) %>%
+  dplyr::mutate(outcomeKnown=ifelse(is.na(outcomeKnown),0,1)) %>%
+  dplyr::group_by(week=cut(ymd(admissionData$data_date),"week",start.on.monday=TRUE),.drop=F) %>%
+  dplyr::summarise(n=sum(!is.na(pidAdm)),nOutcomeKnown=sum(outcomeKnown==1)) %>%
   pivot_longer(cols=-week,names_to="countType",values_to="n")
   # outcome data needs to be taken from the daily data
 admissionsWeekly$countType<-factor(admissionsWeekly$countType,levels=c("n","nOutcomeKnown"))
@@ -43,8 +43,8 @@ admissionsWeekly %>%
 ```{r}
 admissionDataSex <- admissionDataCurPeriod %>%
   select(pidAdm,data_date,agegrp,sexFactor) %>%
-  group_by(sexFactor,agegrp) %>%
-  dplyr::summarize(nadmn = sum(!is.na(pidAdm))) %>%
+  dplyr::group_by(sexFactor,agegrp) %>%
+  dplyr::summarise(nadmn = sum(!is.na(pidAdm))) %>%
   ungroup() %>%
   tidyr::complete(sexFactor,agegrp,fill=list(nadmn=0))
 
@@ -64,17 +64,17 @@ Row {data-width=350}
 
 ```{r}
 admissionsWeekly<-admissionData %>%
-  mutate(outcomeKnown=ifelse(is.na(outcomeKnown),0,1)) %>%
-  group_by(week=cut(ymd(admissionData$data_date),"week",start.on.monday=TRUE),.drop=F) %>%
-  summarise(n=sum(!is.na(pidAdm)),percOrganSupportOxygen=100*sum(adm1==1)/sum(!is.na(pidAdm)),percOrganSupportFluidBalance=100*sum(adm2==1)/sum(!is.na(pidAdm))) %>%
-  filter(is.element(el=ymd(week),set=ymd(curWeek)))
+  dplyr::mutate(outcomeKnown=ifelse(is.na(outcomeKnown),0,1)) %>%
+  dplyr::group_by(week=cut(ymd(admissionData$data_date),"week",start.on.monday=TRUE),.drop=F) %>%
+  dplyr::summarise(n=sum(!is.na(pidAdm)),percOrganSupportOxygen=100*sum(adm1==1)/sum(!is.na(pidAdm)),percOrganSupportFluidBalance=100*sum(adm2==1)/sum(!is.na(pidAdm))) %>%
+  dplyr::filter(is.element(el=ymd(week),set=ymd(curWeek)))
 
 admissionsWeeklyLong <-admissionsWeekly %>%
-  pivot_longer(cols=c(percOrganSupportOxygen,percOrganSupportFluidBalance),names_to="percType",values_to="percentage")
+  tidyr::pivot_longer(cols=c(percOrganSupportOxygen,percOrganSupportFluidBalance),names_to="percType",values_to="percentage")
   # outcome data needs to be taken from the daily data
 admissionsWeeklyLong$percType<-factor(admissionsWeeklyLong$percType,levels=c("percOrganSupportOxygen","percOrganSupportFluidBalance"))
 
-admissionsWeekly<-admissionsWeekly %>% mutate(
+admissionsWeekly<-admissionsWeekly %>% dplyr::mutate(
   maxPerc=pmax(percOrganSupportOxygen,percOrganSupportFluidBalance),
   nLabel=paste(sep="","n = ",n))
 
@@ -93,9 +93,9 @@ ggplot() +
 ```{r}
 admissionDataCurPeriod %>%
   select(pidAdm,osa1Dur,osa2Dur) %>%
-  pivot_longer(cols=-pidAdm,names_to="osType",values_to="duration") %>%
-  mutate(osType=factor(ifelse(osType=="osa1Dur","Oxygen administration.","Careful fluid balance."),levels=c("Oxygen administration.","Careful fluid balance."))) %>%
-  filter(duration > 0) %>% # this line guarantees that organ support duration is only summarised for individuals that received organ support
+  tidyr::pivot_longer(cols=-pidAdm,names_to="osType",values_to="duration") %>%
+  dplyr::mutate(osType=factor(ifelse(osType=="osa1Dur","Oxygen administration.","Careful fluid balance."),levels=c("Oxygen administration.","Careful fluid balance."))) %>%
+  dplyr::filter(duration > 0) %>% # this line guarantees that organ support duration is only summarised for individuals that received organ support
   
   ggplot(mapping=aes(x=osType,y=duration,fill=osType)) +
   geom_boxplot() +
@@ -315,13 +315,13 @@ varDescIdx<-grep(tbl1$variable,pattern="\\[n=")
 varDescLabels<-labClean(tbl1[varDescIdx,1])
 tbl1<-tbl1[-varDescIdx,]
 
-kable(tbl1,col.names=NULL,row.names=F,caption=paste(sep="","Patient characteristics: demographics (period ",minDay," to ",maxDay,"; total admissions n=",nrow(admissionDataCurPeriod),")")) %>%
-  kable_styling("striped", full_width = F) %>%
+knitr::kable(tbl1,col.names=NULL,row.names=F,caption=paste(sep="","Patient characteristics: demographics (period ",minDay," to ",maxDay,"; total admissions n=",nrow(admissionDataCurPeriod),")")) %>%
+  kableExtra::kable_styling("striped", full_width = F) %>%
   #add_header_above(c("Demographics" = 1, paste(sep="","Patients to HDRU from ",minDay," to ",maxDay,"[n = ",nrow(admissionData),"]") = 2)) %>%
-  pack_rows(varDescLabels[1], 1, 2) %>%
-  pack_rows(varDescLabels[2], 3, 4) %>%
-  pack_rows(varDescLabels[3], 5, 7) %>%
-  pack_rows(varDescLabels[4], 8, 12)
+  kableExtra::pack_rows(varDescLabels[1], 1, 2) %>%
+  kableExtra::pack_rows(varDescLabels[2], 3, 4) %>%
+  kableExtra::pack_rows(varDescLabels[3], 5, 7) %>%
+  kableExtra::pack_rows(varDescLabels[4], 8, 12)
 ```
 
 ```{r table2}
@@ -337,16 +337,16 @@ varDescIdx<-grep(tbl2$variable,pattern="\\[n=")
 varDescLabels<-labClean(tbl2[varDescIdx,1])
 tbl2<-tbl2[-varDescIdx,]
 
-kable(tbl2,col.names=NULL,row.names=F,caption=paste(sep="","Patient characteristics: medical history (period ",minDay," to ",maxDay,"; total admissions n=",nrow(admissionDataCurPeriod),")")) %>%
-  kable_styling("striped", full_width = F) %>%
+knitr::kable(tbl2,col.names=NULL,row.names=F,caption=paste(sep="","Patient characteristics: medical history (period ",minDay," to ",maxDay,"; total admissions n=",nrow(admissionDataCurPeriod),")")) %>%
+  kableExtra::kable_styling("striped", full_width = F) %>%
   #add_header_above(c("Demographics" = 1, paste(sep="","Patients to HDRU from ",minDay," to ",maxDay,"[n = ",nrow(admissionData),"]") = 2)) %>%
-  pack_rows(varDescLabels[1], 1, 4) %>%
-  pack_rows(varDescLabels[2], 5, 8) %>%
-  pack_rows(varDescLabels[3], 9, 10) %>%
-  pack_rows(varDescLabels[4], 11, 12) %>%
-  pack_rows(varDescLabels[5], 13, 14) %>%
-  pack_rows(varDescLabels[6], 15, 16) %>%
-  pack_rows(varDescLabels[7], 17, 20)
+  kableExtra::pack_rows(varDescLabels[1], 1, 4) %>%
+  kableExtra::pack_rows(varDescLabels[2], 5, 8) %>%
+  kableExtra::pack_rows(varDescLabels[3], 9, 10) %>%
+  kableExtra::pack_rows(varDescLabels[4], 11, 12) %>%
+  kableExtra::pack_rows(varDescLabels[5], 13, 14) %>%
+  kableExtra::pack_rows(varDescLabels[6], 15, 16) %>%
+  kableExtra::pack_rows(varDescLabels[7], 17, 20)
 ```
 
 ```{r table3}
@@ -361,12 +361,12 @@ varDescIdx<-grep(tbl3$variable,pattern="\\[n=")
 varDescLabels<-labClean(tbl3[varDescIdx,1])
 tbl3<-tbl3[-varDescIdx,]
 
-kable(tbl3,col.names=NULL,row.names=F,caption=paste(sep="","Patient characteristics: acute severity (period ",minDay," to ",maxDay,"; total admissions n=",nrow(admissionDataCurPeriod),")")) %>%
-  kable_styling("striped", full_width = F) %>%
+knitr::kable(tbl3,col.names=NULL,row.names=F,caption=paste(sep="","Patient characteristics: acute severity (period ",minDay," to ",maxDay,"; total admissions n=",nrow(admissionDataCurPeriod),")")) %>%
+  kableExtra::kable_styling("striped", full_width = F) %>%
   #add_header_above(c("Demographics" = 1, paste(sep="","Patients to HDRU from ",minDay," to ",maxDay,"[n = ",nrow(admissionData),"]") = 2)) %>%
-  pack_rows(varDescLabels[1], 1, 1) %>%
-  pack_rows(varDescLabels[2], 2, 2) %>%
-  pack_rows(varDescLabels[3], 3, 7)
+  kableExtra::pack_rows(varDescLabels[1], 1, 1) %>%
+  kableExtra::pack_rows(varDescLabels[2], 2, 2) %>%
+  kableExtra::pack_rows(varDescLabels[3], 3, 7)
 ```
 
 
@@ -429,22 +429,22 @@ varDescIdx<-grep(tbl4$variable,pattern="\\[n=")
 varDescLabels<-labClean(tbl4[varDescIdx,1])
 tbl4<-tbl4[-varDescIdx,]
 
-kable(tbl4,col.names=NULL,row.names=F,caption=paste(sep="","Patient outcomes (period ",minDay," to ",maxDay,"; total admissions n=",nrow(admissionDataCurPeriod),")")) %>%
-  kable_styling("striped", full_width = F) %>%
+knitr::kable(tbl4,col.names=NULL,row.names=F,caption=paste(sep="","Patient outcomes (period ",minDay," to ",maxDay,"; total admissions n=",nrow(admissionDataCurPeriod),")")) %>%
+  kableExtra::kable_styling("striped", full_width = F) %>%
   #add_header_above(c("Demographics" = 1, paste(sep="","Patients to HDRU from ",minDay," to ",maxDay,"[n = ",nrow(admissionData),"]") = 2)) %>%
-  pack_rows(varDescLabels[1], 1, 4) %>%
-  pack_rows(varDescLabels[2], 5, 6) %>%
-  pack_rows(varDescLabels[3], 7, 8) %>%
-  pack_rows(varDescLabels[4], 9, 10) %>%
-  pack_rows(varDescLabels[5], 11, 18) %>%
-  pack_rows(varDescLabels[13], 19, 20) %>%
-  pack_rows(varDescLabels[14], 21, 22) %>%
-  pack_rows(varDescLabels[15], 23, 24) %>%
-  pack_rows(varDescLabels[16], 25, 26) %>%
-  pack_rows(varDescLabels[17], 27, 28) %>%
-  pack_rows(varDescLabels[18], 29, 30) %>%
-  pack_rows(varDescLabels[19], 31, 32) %>%
-  pack_rows(varDescLabels[20], 33, 34)
+  kableExtra::pack_rows(varDescLabels[1], 1, 4) %>%
+  kableExtra::pack_rows(varDescLabels[2], 5, 6) %>%
+  kableExtra::pack_rows(varDescLabels[3], 7, 8) %>%
+  kableExtra::pack_rows(varDescLabels[4], 9, 10) %>%
+  kableExtra::pack_rows(varDescLabels[5], 11, 18) %>%
+  kableExtra::pack_rows(varDescLabels[13], 19, 20) %>%
+  kableExtra::pack_rows(varDescLabels[14], 21, 22) %>%
+  kableExtra::pack_rows(varDescLabels[15], 23, 24) %>%
+  kableExtra::pack_rows(varDescLabels[16], 25, 26) %>%
+  kableExtra::pack_rows(varDescLabels[17], 27, 28) %>%
+  kableExtra::pack_rows(varDescLabels[18], 29, 30) %>%
+  kableExtra::pack_rows(varDescLabels[19], 31, 32) %>%
+  kableExtra::pack_rows(varDescLabels[20], 33, 34)
 ```
 
 ```{r outcomeByPatientCharacteristics}
@@ -479,36 +479,36 @@ varDescIdx<-grep(tbl5$variable,pattern="\\[n=")
 varDescLabels<-labClean(tbl5[varDescIdx,1])
 tbl5<-tbl5[-varDescIdx,]
 
-kable(tbl5,col.names=rep("",ncol(tbl5)),row.names=F,caption=paste(sep="","Patient characteristics by outcome (period ",minDay," to ",maxDay,"; total admissions n=",nrow(admissionDataCurPeriod),")")) %>%
-  kable_styling("striped", full_width = F) %>%
+knitr::kable(tbl5,col.names=rep("",ncol(tbl5)),row.names=F,caption=paste(sep="","Patient characteristics by outcome (period ",minDay," to ",maxDay,"; total admissions n=",nrow(admissionDataCurPeriod),")")) %>%
+  kableExtra::kable_styling("striped", full_width = F) %>%
   #add_header_above(c("Demographics" = 1, paste(sep="","Patients to HDRU from ",minDay," to ",maxDay,"[n = ",nrow(admissionData),"]") = 2)) %>%
-  pack_rows(varDescLabels[1], 1, 5) %>%
-  pack_rows(varDescLabels[2], 6, 7) %>%
-  pack_rows(varDescLabels[3], 8, 12) %>%
-  pack_rows(varDescLabels[4], 13, 16) %>%
-  pack_rows(varDescLabels[5], 17, 18) %>%
-  pack_rows(varDescLabels[6], 19, 20) %>%
-  pack_rows(varDescLabels[7], 21, 22) %>%
-  pack_rows(varDescLabels[8], 23, 24) %>%
-  pack_rows(varDescLabels[9], 25, 32) %>%
-  pack_rows(varDescLabels[17], 33, 34) %>%
-  pack_rows(varDescLabels[18], 35, 36) %>%
-  pack_rows(varDescLabels[19], 37, 38) %>%
-  pack_rows(varDescLabels[20], 39, 40) %>%
-  pack_rows(varDescLabels[21], 41, 42) %>%
-  pack_rows(varDescLabels[22], 43, 44) %>%
-  pack_rows(varDescLabels[23], 45, 46) %>%
-  pack_rows(varDescLabels[24], 47, 48) %>%
-  column_spec(1, width = "15em") %>%
-  column_spec(2, width = "3em") %>%
-  column_spec(3, width = "8em") %>%
-  column_spec(4, width = "3em") %>%
-  column_spec(5, width = "8em") %>%
-  column_spec(6, width = "3em") %>%
-  column_spec(7, width = "8em") %>%
-  column_spec(8, width = "3em") %>%
-  column_spec(9, width = "8em") %>%
-  column_spec(10, width = "3em") %>%
-  column_spec(11, width = "8em") %>%
+  kableExtra::pack_rows(varDescLabels[1], 1, 5) %>%
+  kableExtra::pack_rows(varDescLabels[2], 6, 7) %>%
+  kableExtra::pack_rows(varDescLabels[3], 8, 12) %>%
+  kableExtra::pack_rows(varDescLabels[4], 13, 16) %>%
+  kableExtra::pack_rows(varDescLabels[5], 17, 18) %>%
+  kableExtra::pack_rows(varDescLabels[6], 19, 20) %>%
+  kableExtra::pack_rows(varDescLabels[7], 21, 22) %>%
+  kableExtra::pack_rows(varDescLabels[8], 23, 24) %>%
+  kableExtra::pack_rows(varDescLabels[9], 25, 32) %>%
+  kableExtra::pack_rows(varDescLabels[17], 33, 34) %>%
+  kableExtra::pack_rows(varDescLabels[18], 35, 36) %>%
+  kableExtra::pack_rows(varDescLabels[19], 37, 38) %>%
+  kableExtra::pack_rows(varDescLabels[20], 39, 40) %>%
+  kableExtra::pack_rows(varDescLabels[21], 41, 42) %>%
+  kableExtra::pack_rows(varDescLabels[22], 43, 44) %>%
+  kableExtra::pack_rows(varDescLabels[23], 45, 46) %>%
+  kableExtra::pack_rows(varDescLabels[24], 47, 48) %>%
+  kableExtra::column_spec(1, width = "15em") %>%
+  kableExtra::column_spec(2, width = "3em") %>%
+  kableExtra::column_spec(3, width = "8em") %>%
+  kableExtra::column_spec(4, width = "3em") %>%
+  kableExtra::column_spec(5, width = "8em") %>%
+  kableExtra::column_spec(6, width = "3em") %>%
+  kableExtra::column_spec(7, width = "8em") %>%
+  kableExtra::column_spec(8, width = "3em") %>%
+  kableExtra::column_spec(9, width = "8em") %>%
+  kableExtra::column_spec(10, width = "3em") %>%
+  kableExtra::column_spec(11, width = "8em") %>%
   add_header_above(c(" ", "Discharged (hospital)" = 2, "Discharged (critical care), died in hospital" = 2, "Died in critical care" = 2, "Discharged (critical care), outcome unknown" = 2, "Outcome unknown" = 2), align="l")
 ```

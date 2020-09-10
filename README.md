@@ -30,7 +30,7 @@ You will need to
 The example below assumes you've got the 2 input data files sitting in your working directory.
 
 ``` r
-library(HDRUdashboard)
+library(HDRU)
 
 admissionData<-read.csv("hdru_admission_raw.csv")
 dailyData<-read.csv("hdru_daily_raw.csv")

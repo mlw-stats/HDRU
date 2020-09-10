@@ -19,6 +19,6 @@ HDRUdashboard(admissionData, dailyData, curWeek, file.name)
 Html dashboard visualising the provided HDRU data
 }
 \description{
-Generates a PDF report containing summaries of the data, including comparison of lengths of hospital stay by sex and age group, outcome by sex,
+Generates an HTML report containing summaries of the data, including comparison of lengths of hospital stay by sex and age group, outcome by sex,
 comorbidity, symptom and treatment distributions and distribution of vital signs on presentation at hospital.
 }

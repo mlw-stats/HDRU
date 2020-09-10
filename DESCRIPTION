@@ -1,4 +1,4 @@
-Package: HDRUdashboard
+Package: HDRU
 Type: Package
 Title: Combine Parameter Estimates via Parametric Bootstrap
 Version: 0.0.0.9000

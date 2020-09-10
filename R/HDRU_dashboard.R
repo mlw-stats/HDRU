@@ -10,8 +10,11 @@
 #' @param file.name Path to a html file to write the dashboard to
 #' 
 #' @return Html dashboard visualising the provided HDRU data
-#' @import rmarkdown flexdashboard ggplot2 tibble dplyr lubridate plotly wesanderson knitr kableExtra
+#' @import rmarkdown flexdashboard ggplot2 tibble dplyr lubridate wesanderson knitr
 #' @importFrom filesstrings file.move
+#' @importFrom kableExtra kable_styling pack_rows column_spec
+#' @importFrom dplyr filter summarise group_by mutate 
+#' @importFrom stats approxfun
 #' 
 #' @export HDRUdashboard
 
