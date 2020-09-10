@@ -279,12 +279,26 @@ reformatForTable<-function(sumStatOutput,varDescription,contCat,nsmall=2,groups=
   
   res[res=="NA"]<-"--"
   res[res=="(NA)"]<-"(-)"
-  res[res=="( NA)"]<-"(-)"
   res[res=="(NA,NA)"]<-"(-,-)"
+  res[res=="NaN"]<-"--"
   res[res=="(NaN%)"]<-"(-)"
   res[res=="( NaN%)"]<-"(-)"
+  res[res=="(  NaN%)"]<-"(-)"
+  res[res=="(   NaN%)"]<-"(-)"
   
   return(res)
+}
+
+labClean<-function(v){
+  v<-gsub(v,pattern="   NaN%",replacement="-")
+  v<-gsub(v,pattern="  NaN%",replacement="-")
+  v<-gsub(v,pattern=" NaN%",replacement="-")
+  v<-gsub(v,pattern="NaN%",replacement="-")
+  v<-gsub(v,pattern="NA,NA",replacement="-,-")
+  v<-gsub(v,pattern="NA",replacement="--")
+  v<-gsub(v,pattern="NaN",replacement="--")
+  
+  return(v)
 }
 ```
 
@@ -298,7 +312,7 @@ tbl1<-rbind(tbl1,reformatForTable(sumStatOutput=sumStatFun(dat=admissionDataCurP
 tbl1<-rbind(tbl1,reformatForTable(sumStatOutput=sumStatFun(dat=admissionDataCurPeriod,var="bmiFactor",values=levels(admissionDataCurPeriod$bmiFactor)),varDescription="Body mass index categories, n (%)",contCat="categorical"))
 
 varDescIdx<-grep(tbl1$variable,pattern="\\[n=")
-varDescLabels<-tbl1[varDescIdx,1]
+varDescLabels<-labClean(tbl1[varDescIdx,1])
 tbl1<-tbl1[-varDescIdx,]
 
 kable(tbl1,col.names=NULL,row.names=F,caption=paste(sep="","Patient characteristics: demographics (period ",minDay," to ",maxDay,"; total admissions n=",nrow(admissionDataCurPeriod),")")) %>%
@@ -320,7 +334,7 @@ tbl2<-rbind(tbl2,reformatForTable(sumStatOutput=sumStatFun(dat=admissionDataCurP
 tbl2<-rbind(tbl2,reformatForTable(sumStatOutput=sumStatFun(dat=admissionDataCurPeriod,var="diabetesFactor",values=levels(admissionDataCurPeriod$diabetesFactor)),varDescription="Diabetes, n (%)",contCat="categorical"))
 
 varDescIdx<-grep(tbl2$variable,pattern="\\[n=")
-varDescLabels<-tbl2[varDescIdx,1]
+varDescLabels<-labClean(tbl2[varDescIdx,1])
 tbl2<-tbl2[-varDescIdx,]
 
 kable(tbl2,col.names=NULL,row.names=F,caption=paste(sep="","Patient characteristics: medical history (period ",minDay," to ",maxDay,"; total admissions n=",nrow(admissionDataCurPeriod),")")) %>%
@@ -344,7 +358,7 @@ tbl3<-rbind(tbl3,reformatForTable(nsmall=0,sumStatOutput=sumStatFun(dat=admissio
 tbl3$stat2<-gsub(pattern="\\( ",replacement="\\(",tbl3$stat2)
 
 varDescIdx<-grep(tbl3$variable,pattern="\\[n=")
-varDescLabels<-tbl3[varDescIdx,1]
+varDescLabels<-labClean(tbl3[varDescIdx,1])
 tbl3<-tbl3[-varDescIdx,]
 
 kable(tbl3,col.names=NULL,row.names=F,caption=paste(sep="","Patient characteristics: acute severity (period ",minDay," to ",maxDay,"; total admissions n=",nrow(admissionDataCurPeriod),")")) %>%
@@ -412,7 +426,7 @@ tbl4<-rbind(tbl4,reformatForTable(nsmall=2,sumStatOutput=sumStatFun(dat=admissio
 tbl4<-rbind(tbl4,reformatForTable(nsmall=2,sumStatOutput=sumStatFun(dat=admissionDataCurPeriod[admissionDataCurPeriod$osa8Dur>0,],var="osa8Dur"),varDescription="Duration of other organ support (days)",contCat="continuous")[c(1:3),])
 
 varDescIdx<-grep(tbl4$variable,pattern="\\[n=")
-varDescLabels<-tbl4[varDescIdx,1]
+varDescLabels<-labClean(tbl4[varDescIdx,1])
 tbl4<-tbl4[-varDescIdx,]
 
 kable(tbl4,col.names=NULL,row.names=F,caption=paste(sep="","Patient outcomes (period ",minDay," to ",maxDay,"; total admissions n=",nrow(admissionDataCurPeriod),")")) %>%
@@ -462,7 +476,7 @@ tbl5<-rbind(tbl5,reformatForTable(sumStatOutput=sumStatFun(dat=admissionDataCurP
 tbl5<-rbind(tbl5,reformatForTable(sumStatOutput=sumStatFun(dat=admissionDataCurPeriod[admissionDataCurPeriod$osa8Dur>0,],var="osa8Dur",groupVar="outcomeAliveOrDead",groups=outcomeLvls),varDescription = "Duration of other organ support (days)",contCat = "continuous",groups=outcomeLvls)[,-c(2:3)])
 
 varDescIdx<-grep(tbl5$variable,pattern="\\[n=")
-varDescLabels<-tbl5[varDescIdx,1]
+varDescLabels<-labClean(tbl5[varDescIdx,1])
 tbl5<-tbl5[-varDescIdx,]
 
 kable(tbl5,col.names=rep("",ncol(tbl5)),row.names=F,caption=paste(sep="","Patient characteristics by outcome (period ",minDay," to ",maxDay,"; total admissions n=",nrow(admissionDataCurPeriod),")")) %>%

@@ -12,7 +12,7 @@ This is an R package for internal use at MLW to run the High Dependency Research
 
 ``` r
 # install.packages("devtools")
-devtools::install_github("JamesChirombo/HDRU_dashboard")
+devtools::install_github("mlw-stats/HDRU")
 ```
 ### Note
 
