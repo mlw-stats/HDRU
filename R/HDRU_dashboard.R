@@ -349,7 +349,7 @@ HDRUdashboard<-function(admissionData,dailyData,curWeek,file.name){
   admissionDataCurPeriod<-admissionData %>%
     filter(ymd(data_date)>=ymd(minDay) & ymd(data_date)<=ymd(maxDay))
   
-  report.rmd.file <- system.file("rmd", "HDRUdashboard.Rmd", package = "HDRUdashboard")
+  report.rmd.file <- system.file("rmd", "HDRUdashboard.Rmd", package = "HDRU")
   render(report.rmd.file, output_file=file.name)
   file.move(system.file("rmd", file.name, package = "HDRUdashboard"), getwd(), overwrite = TRUE)
 }
