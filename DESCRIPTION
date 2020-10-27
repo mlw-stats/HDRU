@@ -1,7 +1,7 @@
 Package: HDRU
 Type: Package
 Title: Combine Parameter Estimates via Parametric Bootstrap
-Version: 0.0.0.9000
+Version: 0.0.1.9000
 Authors@R: c(person("Marc", "Henrion", email = "mhenrion@mlw.mw", role = c("aut", "cre"), comment = c(ORCID = "0000-0003-1242-839X")),person("James", "Chirombo", email = "jchirombo@mlw.mw", role = c("aut")))
 Description: R package implementing the HDRU dashboard. For internal use at MLW at the moment only.
 License: GPL-3

@@ -34,9 +34,9 @@ library(HDRU)
 
 admissionData<-read.csv("hdru_admission_raw.csv")
 dailyData<-read.csv("hdru_daily_raw.csv")
-curWeek<-dmy("06/07/2020","13/07/2020","20/07/2020","27/07/2020")
+curPeriod<-dmy("06/07/2020","13/07/2020","20/07/2020","27/07/2020")
 
-HDRUdashboard(admissionData=admissionData,dailyData=dailyData,curWeek=curWeek,file.name="HDRUdashboard.html")
+HDRUdashboard(admissionData=admissionData,dailyData=dailyData,curPeriod=curPeriod,unit="week",file.name="HDRUdashboard.html")
 ```
 
 Once you have run the `HDRUdashboard` function, open the specified output html file.

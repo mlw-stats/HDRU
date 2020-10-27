@@ -6,7 +6,8 @@
 #' comorbidity, symptom and treatment distributions and distribution of vital signs on presentation at hospital. 
 #' @param admissionData Data table with the current admission data from the MLW data portal
 #' @param dailyData Data frame with the current daily data from the MLW data portal
-#' @param curWeek Character string vector in yyyy-mm-dd format; giving the Mondays of the weeks to include in the report; e.g. dmy("06/07/2020","13/07/2020","20/07/2020","27/07/2020")
+#' @param curPeriod Character string vector in yyyy-mm-dd format; giving the Mondays of the weeks to include in the report; e.g. dmy("2020"/07/06,"2020/07/13","2020/07/20","2020/07/27") or the start of the months to include; e.g. dmy("2020/04/01","2020/05/01","2020/06/01","2020/07/01")
+#' @param unit Character string that is either 'week' or 'month' giving the grouping to use for the bar plots
 #' @param file.name Path to a html file to write the dashboard to
 #' 
 #' @return Html dashboard visualising the provided HDRU data
@@ -35,7 +36,7 @@
 #' 
 #' @export HDRUdashboard
 
-HDRUdashboard<-function(admissionData,dailyData,curWeek,file.name){
+HDRUdashboard<-function(admissionData,dailyData,curPeriod,unit="week",file.name){
   #admissionData <- read_csv("hdru_admission_raw.csv")
   # not all PIDs are unique, e.g. KAA7V0 - can people be admitted, then discharged, then re-admitted from HDRU?
   # which variable captures date of discharge?
@@ -121,15 +122,6 @@ HDRUdashboard<-function(admissionData,dailyData,curWeek,file.name){
   osaDur$osa7Dur<-osaDur$osa7Dur+tmp7
   osaDur$osa8Dur<-osaDur$osa8Dur+tmp8
   
-  # osaDur$osa1Dur[osaDur$osa1Dur==0]<-NA
-  # osaDur$osa2Dur[osaDur$osa2Dur==0]<-NA
-  # osaDur$osa3Dur[osaDur$osa3Dur==0]<-NA
-  # osaDur$osa4Dur[osaDur$osa4Dur==0]<-NA
-  # osaDur$osa5Dur[osaDur$osa5Dur==0]<-NA
-  # osaDur$osa6Dur[osaDur$osa6Dur==0]<-NA
-  # osaDur$osa7Dur[osaDur$osa7Dur==0]<-NA
-  # osaDur$osa8Dur[osaDur$osa8Dur==0]<-NA
-  
   rm(tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,tmp7,tmp8)
   
   osaDur<-osaDur %>% 
@@ -144,9 +136,7 @@ HDRUdashboard<-function(admissionData,dailyData,curWeek,file.name){
     )
   
   admissionData<-left_join(admissionData,osaDur,by=c("pidAdm" = "adm_pidAdm"))
-  # table(admissionData$adm1,admissionData$osa1Dur) # conflicts: 10 with adm1==1, but osa1Dur==0, 1 with adm1==0 but osa1Dur>0
-  # table(admissionData$adm2,admissionData$osa2Dur) # conflicts: 4 with adm2==1, but osa2Dur==0, 1 with adm2==0 but osa2Dur>0
-  
+
   admissionData<-admissionData %>% add_column(sexFactor=factor(ifelse(admissionData$sex==0,"Female","Male"),levels=c("Female","Male")))
   admissionData<-admissionData %>% add_column(pregFactor=factor(ifelse(admissionData$pregnancy==3,"Not known to be pregnant",ifelse(admissionData$pregnancy==2,"Recently pregnant",ifelse(admissionData$pregnancy==1,"Currently pregnant.",NA))),levels=c("Not known to be pregnant","Recently pregnant","Currently pregnant")))
   admissionData<-admissionData %>% add_column(weight=4*admissionData$muac-50)
@@ -343,13 +333,20 @@ HDRUdashboard<-function(admissionData,dailyData,curWeek,file.name){
   #curWeek<-dmy("06/07/2020","13/07/2020","20/07/2020","27/07/2020")
   # weeks to start on Mondays
   # this variable to become a shiny input / selection field
-  minDay<-min(ymd(curWeek))
-  maxDay<-max(ymd(curWeek)+6)
+  if(unit=="week"){
+    minDay<-min(ymd(curPeriod))
+    maxDay<-max(ymd(curPeriod)+6)
+  }else if(unit=="month"){
+    minDay<-floor_date(min(ymd(curPeriod)),unit="month")
+    maxDay<-ceiling_date(max(ymd(curPeriod)),unit="month")-1
+  }else{
+    stop("Parameter 'unit' needs to be one of 'week' or 'month'.")
+  }
   
   admissionDataCurPeriod<-admissionData %>%
     filter(ymd(data_date)>=ymd(minDay) & ymd(data_date)<=ymd(maxDay))
   
   report.rmd.file <- system.file("rmd", "HDRUdashboard.Rmd", package = "HDRU")
   render(report.rmd.file, output_file=file.name)
-  file.move(system.file("rmd", file.name, package = "HDRUdashboard"), getwd(), overwrite = TRUE)
+  file.move(system.file("rmd", file.name, package = "HDRU"), getwd(), overwrite = TRUE)
 }

@@ -19,23 +19,44 @@ Row {data-width=350}
 ### Weekly admissions, available outcome data, organ support
 
 ```{r}
-admissionsWeekly<-admissionData %>%
-  dplyr::mutate(outcomeKnown=ifelse(is.na(outcomeKnown),0,1)) %>%
-  dplyr::group_by(week=cut(ymd(admissionData$data_date),"week",start.on.monday=TRUE),.drop=F) %>%
-  dplyr::summarise(n=sum(!is.na(pidAdm)),nOutcomeKnown=sum(outcomeKnown==1)) %>%
-  pivot_longer(cols=-week,names_to="countType",values_to="n")
+if(unit=="week"){
+  admissionsWeekly<-admissionData %>%
+    dplyr::mutate(outcomeKnown=ifelse(is.na(outcomeKnown),0,1)) %>%
+    dplyr::group_by(week=cut(ymd(admissionData$data_date),"week",start.on.monday=TRUE),.drop=F) %>%
+    dplyr::summarise(n=sum(!is.na(pidAdm)),nOutcomeKnown=sum(outcomeKnown==1)) %>%
+    pivot_longer(cols=-week,names_to="countType",values_to="n")
   # outcome data needs to be taken from the daily data
-admissionsWeekly$countType<-factor(admissionsWeekly$countType,levels=c("n","nOutcomeKnown"))
-
-admissionsWeekly %>%
-  filter(is.element(el=ymd(week),set=ymd(curWeek))) %>%
-  ggplot(mapping=aes(x=week,y=n,fill=countType)) +
-  geom_bar(position="dodge",stat="identity") +
-  scale_fill_manual(values=wes_palette("Zissou1",n=4,type="discrete")[c(1,4)],name="",labels=c("admitted","outcome recorded")) +
-  ylab("Frequency") +
-  theme_minimal() +
-  theme(legend.position="top",text=element_text(size=28),axis.text.x=element_text(angle = 30, hjust = 1)) +
-  xlab("Week") 
+  admissionsWeekly$countType<-factor(admissionsWeekly$countType,levels=c("n","nOutcomeKnown"))
+  
+  admissionsWeekly %>%
+    filter(is.element(el=ymd(week),set=ymd(curPeriod))) %>%
+    ggplot(mapping=aes(x=week,y=n,fill=countType)) +
+    geom_bar(position="dodge",stat="identity") +
+    scale_fill_manual(values=wes_palette("Zissou1",n=4,type="discrete")[c(1,4)],name="",labels=c("admitted","outcome recorded")) +
+    ylab("Frequency") +
+    theme_minimal() +
+    theme(legend.position="top",text=element_text(size=28),axis.text.x=element_text(angle = 30, hjust = 1)) +
+    xlab("Week") 
+}else if(unit=="month"){
+  admissionsMonthly<-admissionData %>%
+    dplyr::mutate(outcomeKnown=ifelse(is.na(outcomeKnown),0,1)) %>%
+    dplyr::group_by(month=cut(ymd(admissionData$data_date),"month"),.drop=F) %>%
+    dplyr::summarise(n=sum(!is.na(pidAdm)),nOutcomeKnown=sum(outcomeKnown==1)) %>%
+    pivot_longer(cols=-month,names_to="countType",values_to="n")
+  # outcome data needs to be taken from the daily data
+  admissionsMonthly$countType<-factor(admissionsMonthly$countType,levels=c("n","nOutcomeKnown"))
+  
+  admissionsMonthly %>%
+    filter(is.element(el=ymd(month),set=ymd(curPeriod))) %>%
+    dplyr::mutate(month=format_ISO8601(ymd(month),precision="ym")) %>%
+    ggplot(mapping=aes(x=month,y=n,fill=countType)) +
+    geom_bar(position="dodge",stat="identity") +
+    scale_fill_manual(values=wes_palette("Zissou1",n=4,type="discrete")[c(1,4)],name="",labels=c("admitted","outcome recorded")) +
+    ylab("Frequency") +
+    theme_minimal() +
+    theme(legend.position="top",text=element_text(size=28),axis.text.x=element_text(angle = 30, hjust = 1)) +
+    xlab("Month") 
+}
 ```
 
 ### Age and sex distribution (for period `r minDay` to `r maxDay`)
@@ -63,29 +84,56 @@ Row {data-width=350}
 ### Organ support required (at admission)
 
 ```{r}
-admissionsWeekly<-admissionData %>%
-  dplyr::mutate(outcomeKnown=ifelse(is.na(outcomeKnown),0,1)) %>%
-  dplyr::group_by(week=cut(ymd(admissionData$data_date),"week",start.on.monday=TRUE),.drop=F) %>%
-  dplyr::summarise(n=sum(!is.na(pidAdm)),percOrganSupportOxygen=100*sum(adm1==1)/sum(!is.na(pidAdm)),percOrganSupportFluidBalance=100*sum(adm2==1)/sum(!is.na(pidAdm))) %>%
-  dplyr::filter(is.element(el=ymd(week),set=ymd(curWeek)))
-
-admissionsWeeklyLong <-admissionsWeekly %>%
-  tidyr::pivot_longer(cols=c(percOrganSupportOxygen,percOrganSupportFluidBalance),names_to="percType",values_to="percentage")
+if(unit=="week"){
+  admissionsWeekly<-admissionData %>%
+    dplyr::mutate(outcomeKnown=ifelse(is.na(outcomeKnown),0,1)) %>%
+    dplyr::group_by(week=cut(ymd(admissionData$data_date),"week",start.on.monday=TRUE),.drop=F) %>%
+    dplyr::summarise(n=sum(!is.na(pidAdm)),percOrganSupportOxygen=100*sum(adm1==1)/sum(!is.na(pidAdm)),percOrganSupportFluidBalance=100*sum(adm2==1)/sum(!is.na(pidAdm))) %>%
+    dplyr::filter(is.element(el=ymd(week),set=ymd(curPeriod)))
+  
+  admissionsWeeklyLong <-admissionsWeekly %>%
+    tidyr::pivot_longer(cols=c(percOrganSupportOxygen,percOrganSupportFluidBalance),names_to="percType",values_to="percentage")
   # outcome data needs to be taken from the daily data
-admissionsWeeklyLong$percType<-factor(admissionsWeeklyLong$percType,levels=c("percOrganSupportOxygen","percOrganSupportFluidBalance"))
-
-admissionsWeekly<-admissionsWeekly %>% dplyr::mutate(
-  maxPerc=pmax(percOrganSupportOxygen,percOrganSupportFluidBalance),
-  nLabel=paste(sep="","n = ",n))
-
-ggplot() +
-  geom_bar(data=admissionsWeeklyLong,mapping=aes(x=week,y=percentage,fill=percType),position="dodge",stat="identity") +
-  scale_fill_manual(values=wes_palette("Zissou1",n=4,type="discrete")[c(1,4)],name="",labels=c("Oxygen support","Fluid balance")) +
-  ylab("Percentage") +
-  theme_minimal() +
-  theme(legend.position="top",text=element_text(size=28),axis.text.x=element_text(angle = 30, hjust = 1)) +
-  xlab("Week") +
-  geom_text(data=admissionsWeekly,mapping=aes(x=week,y=-4,label=nLabel),colour="grey50",size=8)
+  admissionsWeeklyLong$percType<-factor(admissionsWeeklyLong$percType,levels=c("percOrganSupportOxygen","percOrganSupportFluidBalance"))
+  
+  admissionsWeekly<-admissionsWeekly %>% dplyr::mutate(
+    maxPerc=pmax(percOrganSupportOxygen,percOrganSupportFluidBalance),
+    nLabel=paste(sep="","n = ",n))
+  
+  ggplot() +
+    geom_bar(data=admissionsWeeklyLong,mapping=aes(x=week,y=percentage,fill=percType),position="dodge",stat="identity") +
+    scale_fill_manual(values=wes_palette("Zissou1",n=4,type="discrete")[c(1,4)],name="",labels=c("Oxygen support","Fluid balance")) +
+    ylab("Percentage") +
+    theme_minimal() +
+    theme(legend.position="top",text=element_text(size=28),axis.text.x=element_text(angle = 30, hjust = 1)) +
+    xlab("Week") +
+    geom_text(data=admissionsWeekly,mapping=aes(x=week,y=-4,label=nLabel),colour="grey50",size=8)
+}else if(unit=="month"){
+  admissionsMonthly<-admissionData %>%
+    dplyr::mutate(outcomeKnown=ifelse(is.na(outcomeKnown),0,1)) %>%
+    dplyr::group_by(month=cut(ymd(admissionData$data_date),"month"),.drop=F) %>%
+    dplyr::summarise(n=sum(!is.na(pidAdm)),percOrganSupportOxygen=100*sum(adm1==1)/sum(!is.na(pidAdm)),percOrganSupportFluidBalance=100*sum(adm2==1)/sum(!is.na(pidAdm))) %>%
+    dplyr::filter(is.element(el=ymd(month),set=ymd(curPeriod))) %>%
+    dplyr::mutate(month=format_ISO8601(ymd(month),precision="ym"))
+  
+  admissionsMonthlyLong <-admissionsMonthly %>%
+    tidyr::pivot_longer(cols=c(percOrganSupportOxygen,percOrganSupportFluidBalance),names_to="percType",values_to="percentage")
+  # outcome data needs to be taken from the daily data
+  admissionsMonthlyLong$percType<-factor(admissionsMonthlyLong$percType,levels=c("percOrganSupportOxygen","percOrganSupportFluidBalance"))
+  
+  admissionsMonthly<-admissionsMonthly %>% dplyr::mutate(
+    maxPerc=pmax(percOrganSupportOxygen,percOrganSupportFluidBalance),
+    nLabel=paste(sep="","n = ",n))
+  
+  ggplot() +
+    geom_bar(data=admissionsMonthlyLong,mapping=aes(x=month,y=percentage,fill=percType),position="dodge",stat="identity") +
+    scale_fill_manual(values=wes_palette("Zissou1",n=4,type="discrete")[c(1,4)],name="",labels=c("Oxygen support","Fluid balance")) +
+    ylab("Percentage") +
+    theme_minimal() +
+    theme(legend.position="top",text=element_text(size=28),axis.text.x=element_text(angle = 30, hjust = 1)) +
+    xlab("Month") +
+    geom_text(data=admissionsMonthly,mapping=aes(x=month,y=-4,label=nLabel),colour="grey50",size=8)
+}
 ```
 
 ### Organ support duration (for those patients that received organ support)
