@@ -6,8 +6,10 @@
 #' comorbidity, symptom and treatment distributions and distribution of vital signs on presentation at hospital. 
 #' @param admissionData Data table with the current admission data from the MLW data portal
 #' @param dailyData Data frame with the current daily data from the MLW data portal
-#' @param curPeriod Character string vector in yyyy-mm-dd format; giving the Mondays of the weeks to include in the report; e.g. dmy("2020"/07/06,"2020/07/13","2020/07/20","2020/07/27") or the start of the months to include; e.g. dmy("2020/04/01","2020/05/01","2020/06/01","2020/07/01")
+#' @param curPeriod Character string vector in yyyy-mm-dd format; giving the Mondays of the weeks to include in the report (if unit=="week"); e.g. dmy("2020"/07/06,"2020/07/13","2020/07/20","2020/07/27") or the start of the months (if unit="month") to include; e.g. dmy("2020/04/01","2020/05/01","2020/06/01","2020/07/01")
 #' @param unit Character string that is either 'week' or 'month' giving the grouping to use for the bar plots
+#' @param minDay Character string in yyy-mm-dd format indicating the start of the period to summarise; defaults to NULL (in this case determined from curPeriod); if both minDay and maxDay are not NULL, then they determine the range of records to include in the tables and the plots that are not stratified by week or month
+#' @param maxDay Character string in yyy-mm-dd format indicating the end of the period to summarise; defaults to NULL (in this case determined from curPeriod); if both minDay and maxDay are not NULL, then they determine the range of records to include in the tables and the plots that are not stratified by week or month
 #' @param file.name Path to a html file to write the dashboard to
 #' 
 #' @return Html dashboard visualising the provided HDRU data
@@ -36,7 +38,7 @@
 #' 
 #' @export HDRUdashboard
 
-HDRUdashboard<-function(admissionData,dailyData,curPeriod,unit="week",file.name){
+HDRUdashboard<-function(admissionData,dailyData,curPeriod,unit="week",minDay=NULL,maxDay=NULL,file.name){
   #admissionData <- read_csv("hdru_admission_raw.csv")
   # not all PIDs are unique, e.g. KAA7V0 - can people be admitted, then discharged, then re-admitted from HDRU?
   # which variable captures date of discharge?
@@ -333,14 +335,16 @@ HDRUdashboard<-function(admissionData,dailyData,curPeriod,unit="week",file.name)
   #curWeek<-dmy("06/07/2020","13/07/2020","20/07/2020","27/07/2020")
   # weeks to start on Mondays
   # this variable to become a shiny input / selection field
-  if(unit=="week"){
-    minDay<-min(ymd(curPeriod))
-    maxDay<-max(ymd(curPeriod)+6)
-  }else if(unit=="month"){
-    minDay<-floor_date(min(ymd(curPeriod)),unit="month")
-    maxDay<-ceiling_date(max(ymd(curPeriod)),unit="month")-1
-  }else{
-    stop("Parameter 'unit' needs to be one of 'week' or 'month'.")
+  if(is.null(minDay) | is.null(maxDay)){
+    if(unit=="week"){
+      minDay<-min(ymd(curPeriod))
+      maxDay<-max(ymd(curPeriod)+6)
+    }else if(unit=="month"){
+      minDay<-floor_date(min(ymd(curPeriod)),unit="month")
+      maxDay<-ceiling_date(max(ymd(curPeriod)),unit="month")-1
+    }else{
+      stop("Parameter 'unit' needs to be one of 'week' or 'month'.")
+    }
   }
   
   admissionDataCurPeriod<-admissionData %>%
